@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -25,19 +25,26 @@ import {
   FormControl,
   InputLabel,
   Alert,
-  Chip
+  Chip,
+  Avatar
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import PersonIcon from '@mui/icons-material/Person';
+import LanguageIcon from '@mui/icons-material/Language';
 import { childrenAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
+import { getChildAvatarPath } from '../utils/animalAvatars';
 
 function StaffDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t, language, toggleLanguage } = useLanguage();
+  const nameInputRef = useRef(null);
   const [children, setChildren] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -52,6 +59,13 @@ function StaffDashboard() {
   useEffect(() => {
     fetchChildren();
   }, []);
+
+  const handleDialogEntered = () => {
+    // Focus the input after dialog transition completes
+    if (nameInputRef.current) {
+      nameInputRef.current.focus();
+    }
+  };
 
   const fetchChildren = async () => {
     setLoading(true);
@@ -93,19 +107,32 @@ function StaffDashboard() {
     setError('');
     setSuccess('');
 
+    if (!formData.name) return; // Don't submit if name is empty
+
+    // Check for duplicate names
+    const nameExists = children.some(child => 
+      child.name.toLowerCase() === formData.name.toLowerCase() && 
+      (!editChild || child.id !== editChild.id)
+    );
+
+    if (nameExists) {
+      setError(`A child with the name "${formData.name}" already exists.`);
+      return;
+    }
+
     try {
       if (editChild) {
         await childrenAPI.update(editChild.id, {
           name: formData.name,
           assignedGroup: formData.assignedGroup
         });
-        setSuccess('Child updated successfully');
+        setSuccess(t('childUpdatedSuccess'));
       } else {
         const response = await childrenAPI.create({
           name: formData.name,
           assignedGroup: formData.assignedGroup
         });
-        setSuccess(`Child created! Registration code: ${response.data.child.registrationCode}`);
+        setSuccess(`${t('childCreatedSuccess')}! ${t('registrationCodeLabel')}: ${response.data.child.registrationCode}`);
       }
       handleCloseDialog();
       fetchChildren();
@@ -114,21 +141,28 @@ function StaffDashboard() {
     }
   };
 
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && formData.name) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
   const handleDelete = async (id, name) => {
-    if (window.confirm(`Are you sure you want to delete ${name}?`)) {
+    if (window.confirm(t('confirmDeleteChild'))) {
       try {
         await childrenAPI.delete(id);
-        setSuccess('Child deleted successfully');
+        setSuccess(t('childDeletedSuccess'));
         fetchChildren();
       } catch (err) {
-        setError('Failed to delete child');
+        setError(t('failedToUpdateProfile'));
       }
     }
   };
 
   const handleCopyCode = (code) => {
     navigator.clipboard.writeText(code);
-    setSuccess(`Registration code ${code} copied to clipboard!`);
+    setSuccess(t('codeCopied'));
   };
 
   const groupCounts = {
@@ -147,15 +181,23 @@ function StaffDashboard() {
             color="inherit"
             onClick={() => navigate('/')}
             sx={{ mr: 2 }}
+            title={t('back')}
           >
             <ArrowBackIcon />
           </IconButton>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Staff Dashboard - Child Management
+            {t('staffDashboard')}
           </Typography>
-          <Typography variant="body1">
+          <Typography variant="body1" sx={{ mr: 2 }}>
             {user?.firstName} {user?.lastName}
           </Typography>
+          <Button
+            color="inherit"
+            startIcon={<LanguageIcon />}
+            onClick={toggleLanguage}
+          >
+            {language === 'en' ? 'DE' : 'EN'}
+          </Button>
         </Toolbar>
       </AppBar>
 
@@ -180,13 +222,13 @@ function StaffDashboard() {
             {['A', 'B', 'C', 'D'].map(group => (
               <Chip
                 key={group}
-                label={`Group ${group}: ${groupCounts[group]} children`}
+                label={`${t('group')} ${group}: ${groupCounts[group]} ${t('children')}`}
                 color="primary"
                 variant="outlined"
               />
             ))}
             <Chip
-              label={`Total: ${children.length} children`}
+              label={`${t('totalChildren')} ${children.length} ${t('childrenCount')}`}
               color="secondary"
             />
           </Box>
@@ -196,14 +238,14 @@ function StaffDashboard() {
         <Paper elevation={3}>
           <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6">
-              All Children
+              {t('allChildren')}
             </Typography>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
               onClick={() => handleOpenDialog()}
             >
-              Add Child
+              {t('addChild')}
             </Button>
           </Box>
 
@@ -211,28 +253,79 @@ function StaffDashboard() {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Group</TableCell>
-                  <TableCell>Registration Code</TableCell>
-                  <TableCell>Created By</TableCell>
-                  <TableCell>Actions</TableCell>
+                  <TableCell>{t('childName')}</TableCell>
+                  <TableCell>{t('group')}</TableCell>
+                  <TableCell>{t('parents')}</TableCell>
+                  <TableCell>{t('parentContact')}</TableCell>
+                  <TableCell>{t('registrationCodeLabel')}</TableCell>
+                  <TableCell>{t('createdBy')}</TableCell>
+                  <TableCell>{t('actions')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={5} align="center">Loading...</TableCell>
+                    <TableCell colSpan={7} align="center">{t('loading')}</TableCell>
                   </TableRow>
                 ) : children.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} align="center">No children registered</TableCell>
+                    <TableCell colSpan={7} align="center">{t('noChildrenRegistered')}</TableCell>
                   </TableRow>
                 ) : (
                   children.map((child) => (
                     <TableRow key={child.id}>
-                      <TableCell>{child.name}</TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Avatar 
+                            variant="square" 
+                            sx={{ width: 32, height: 32, bgcolor: 'transparent' }}
+                            src={getChildAvatarPath(child.id)}
+                            alt={child.name}
+                          >
+                            <PersonIcon fontSize="small" />
+                          </Avatar>
+                          {child.name}
+                        </Box>
+                      </TableCell>
                       <TableCell>
                         <Chip label={child.assigned_group} size="small" color="primary" />
+                      </TableCell>
+                      <TableCell>
+                        {child.parents && child.parents.length > 0 ? (
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                            {child.parents.map((parent, idx) => (
+                              <Typography key={parent.id} variant="body2">
+                                {parent.first_name} {parent.last_name}
+                              </Typography>
+                            ))}
+                          </Box>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                            {t('noParentsLinked')}
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {child.parents && child.parents.length > 0 ? (
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                            {child.parents.map((parent, idx) => (
+                              <Box key={parent.id} sx={{ display: 'flex', flexDirection: 'column' }}>
+                                <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+                                  {parent.email}
+                                </Typography>
+                                {parent.phone && (
+                                  <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
+                                    {parent.phone}
+                                  </Typography>
+                                )}
+                              </Box>
+                            ))}
+                          </Box>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            —
+                          </Typography>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -240,7 +333,7 @@ function StaffDashboard() {
                           <IconButton 
                             size="small" 
                             onClick={() => handleCopyCode(child.registration_code)}
-                            title="Copy code"
+                            title={t('copyCode')}
                           >
                             <ContentCopyIcon fontSize="small" />
                           </IconButton>
@@ -254,7 +347,7 @@ function StaffDashboard() {
                           size="small"
                           color="primary"
                           onClick={() => handleOpenDialog(child)}
-                          title="Edit"
+                          title={t('edit')}
                         >
                           <EditIcon />
                         </IconButton>
@@ -262,7 +355,7 @@ function StaffDashboard() {
                           size="small"
                           color="error"
                           onClick={() => handleDelete(child.id, child.name)}
-                          title="Delete"
+                          title={t('delete')}
                         >
                           <DeleteIcon />
                         </IconButton>
@@ -276,43 +369,59 @@ function StaffDashboard() {
         </Paper>
 
         {/* Add/Edit Dialog */}
-        <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+        <Dialog 
+          open={openDialog} 
+          onClose={handleCloseDialog} 
+          maxWidth="sm" 
+          fullWidth
+          TransitionProps={{
+            onEntered: handleDialogEntered
+          }}
+        >
           <DialogTitle>
-            {editChild ? 'Edit Child' : 'Add New Child'}
+            {editChild ? t('editChildTitle') : t('addChildTitle')}
           </DialogTitle>
           <DialogContent>
+            {error && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+              </Alert>
+            )}
             <Box sx={{ pt: 2 }}>
               <TextField
-                label="Child Name"
+                inputRef={nameInputRef}
+                label={t('childNameLabel')}
                 fullWidth
                 margin="normal"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onKeyPress={handleKeyPress}
                 required
               />
               <FormControl fullWidth margin="normal">
-                <InputLabel>Assigned Group</InputLabel>
+                <InputLabel>{t('assignedGroup')}</InputLabel>
                 <Select
                   value={formData.assignedGroup}
                   onChange={(e) => setFormData({ ...formData, assignedGroup: e.target.value })}
-                  label="Assigned Group"
+                  onKeyPress={handleKeyPress}
+                  label={t('assignedGroup')}
                 >
-                  <MenuItem value="A">Group A</MenuItem>
-                  <MenuItem value="B">Group B</MenuItem>
-                  <MenuItem value="C">Group C</MenuItem>
-                  <MenuItem value="D">Group D</MenuItem>
+                  <MenuItem value="A">{t('group')} A</MenuItem>
+                  <MenuItem value="B">{t('group')} B</MenuItem>
+                  <MenuItem value="C">{t('group')} C</MenuItem>
+                  <MenuItem value="D">{t('group')} D</MenuItem>
                 </Select>
               </FormControl>
             </Box>
           </DialogContent>
           <DialogActions>
-            <Button onClick={handleCloseDialog}>Cancel</Button>
+            <Button onClick={handleCloseDialog}>{t('cancel')}</Button>
             <Button 
               onClick={handleSubmit} 
               variant="contained"
               disabled={!formData.name}
             >
-              {editChild ? 'Update' : 'Create'}
+              {editChild ? t('save') : t('add')}
             </Button>
           </DialogActions>
         </Dialog>

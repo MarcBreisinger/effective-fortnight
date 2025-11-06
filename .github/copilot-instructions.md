@@ -8,6 +8,7 @@ A web application for visualizing and managing day-care rotation schedules. The 
 ### Rotation System
 - **Groups**: Children are organized into groups A, B, C, D
 - **Daily Rotation**: Group priority order is stored in database, not calculated
+- **Valid Rotations**: Only 4 cyclic rotations are allowed: ABCD, BCDA, CDAB, DABC
 - **Capacity Management**: When staff shortages occur, groups are excluded from the end of the daily priority order
   - Example: If daily order is A,B,C,D with 3 groups capacity: A,B,C attend (D stays home)
 

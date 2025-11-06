@@ -22,6 +22,19 @@ router.get('/', authenticateToken, requireStaff, async (req, res) => {
        ORDER BY c.assigned_group, c.name`
     );
 
+    // For each child, get their linked parents
+    for (let child of children) {
+      const [parents] = await db.query(
+        `SELECT p.id, p.first_name, p.last_name, p.email, p.phone
+         FROM users p
+         INNER JOIN user_child_links ucl ON p.id = ucl.user_id
+         WHERE ucl.child_id = ? AND p.role = 'parent'
+         ORDER BY p.first_name, p.last_name`,
+        [child.id]
+      );
+      child.parents = parents;
+    }
+
     res.json(children);
   } catch (error) {
     console.error('Get children error:', error);
@@ -65,8 +78,21 @@ router.post('/',
     }
 
     const { name, assignedGroup } = req.body;
+    const GROUP_CAPACITY = 12;
 
     try {
+      // Check if group has capacity
+      const [groupCount] = await db.query(
+        'SELECT COUNT(*) as count FROM children WHERE assigned_group = ?',
+        [assignedGroup]
+      );
+
+      if (groupCount[0].count >= GROUP_CAPACITY) {
+        return res.status(400).json({ 
+          error: `Group ${assignedGroup} is full (capacity: ${GROUP_CAPACITY}). Please assign to a different group.` 
+        });
+      }
+
       // Generate unique registration code
       let registrationCode;
       let isUnique = false;
@@ -118,8 +144,36 @@ router.put('/:id',
 
     const { id } = req.params;
     const { name, assignedGroup } = req.body;
+    const GROUP_CAPACITY = 12;
 
     try {
+      // If changing group, check capacity
+      if (assignedGroup) {
+        // Get current group
+        const [currentChild] = await db.query(
+          'SELECT assigned_group FROM children WHERE id = ?',
+          [id]
+        );
+
+        if (currentChild.length === 0) {
+          return res.status(404).json({ error: 'Child not found' });
+        }
+
+        // Only check capacity if moving to a different group
+        if (currentChild[0].assigned_group !== assignedGroup) {
+          const [groupCount] = await db.query(
+            'SELECT COUNT(*) as count FROM children WHERE assigned_group = ?',
+            [assignedGroup]
+          );
+
+          if (groupCount[0].count >= GROUP_CAPACITY) {
+            return res.status(400).json({ 
+              error: `Group ${assignedGroup} is full (capacity: ${GROUP_CAPACITY}). Cannot move child to this group.` 
+            });
+          }
+        }
+      }
+
       const updates = [];
       const values = [];
 

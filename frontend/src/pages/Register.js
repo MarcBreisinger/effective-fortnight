@@ -7,13 +7,17 @@ import {
   TextField,
   Button,
   Typography,
-  Alert
+  Alert,
+  IconButton
 } from '@mui/material';
+import LanguageIcon from '@mui/icons-material/Language';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 function Register() {
   const navigate = useNavigate();
   const { register } = useAuth();
+  const { t, language, toggleLanguage } = useLanguage();
   const [formData, setFormData] = useState({
     registrationCode: '',
     firstName: '',
@@ -70,11 +74,20 @@ function Register() {
     <Container maxWidth="sm">
       <Box sx={{ mt: 8, mb: 4 }}>
         <Paper elevation={3} sx={{ p: 4 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+            <IconButton onClick={toggleLanguage} color="primary">
+              <LanguageIcon />
+              <Typography variant="caption" sx={{ ml: 0.5 }}>
+                {language === 'en' ? 'DE' : 'EN'}
+              </Typography>
+            </IconButton>
+          </Box>
+          
           <Typography variant="h4" component="h1" gutterBottom align="center">
-            Day-Care Rotation
+            {t('dayCareRotationSchedule')}
           </Typography>
           <Typography variant="h6" gutterBottom align="center" color="text.secondary">
-            Parent Registration
+            {t('register')}
           </Typography>
 
           {error && (
@@ -85,17 +98,17 @@ function Register() {
 
           <form onSubmit={handleSubmit}>
             <TextField
-              label="Registration Code"
+              label={t('registrationCode')}
               name="registrationCode"
               fullWidth
               margin="normal"
               value={formData.registrationCode}
               onChange={handleChange}
               required
-              helperText="Enter the code provided by the day-care staff"
+              helperText={t('enterRegistrationCode')}
             />
             <TextField
-              label="First Name"
+              label={t('firstName')}
               name="firstName"
               fullWidth
               margin="normal"
@@ -104,7 +117,7 @@ function Register() {
               required
             />
             <TextField
-              label="Last Name"
+              label={t('lastName')}
               name="lastName"
               fullWidth
               margin="normal"
@@ -113,7 +126,7 @@ function Register() {
               required
             />
             <TextField
-              label="Email"
+              label={t('email')}
               name="email"
               type="email"
               fullWidth
@@ -124,7 +137,7 @@ function Register() {
               autoComplete="email"
             />
             <TextField
-              label="Phone (optional)"
+              label={t('phoneOptional')}
               name="phone"
               type="tel"
               fullWidth
@@ -133,7 +146,7 @@ function Register() {
               onChange={handleChange}
             />
             <TextField
-              label="Password"
+              label={t('password')}
               name="password"
               type="password"
               fullWidth
@@ -141,10 +154,9 @@ function Register() {
               value={formData.password}
               onChange={handleChange}
               required
-              helperText="Minimum 6 characters"
             />
             <TextField
-              label="Confirm Password"
+              label={t('password')}
               name="confirmPassword"
               type="password"
               fullWidth
@@ -161,15 +173,15 @@ function Register() {
               sx={{ mt: 3, mb: 2 }}
               disabled={loading}
             >
-              {loading ? 'Registering...' : 'Register'}
+              {loading ? t('saving') : t('registerButton')}
             </Button>
           </form>
 
           <Box sx={{ mt: 2, textAlign: 'center' }}>
             <Typography variant="body2">
-              Already have an account?{' '}
+              {t('login')}{' '}
               <Link to="/login" style={{ textDecoration: 'none', color: '#1976d2' }}>
-                Login
+                {t('loginButton')}
               </Link>
             </Typography>
           </Box>

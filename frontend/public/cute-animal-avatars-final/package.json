@@ -1,0 +1,14 @@
+{
+  "name": "@cute-avatars/animals",
+  "version": "3.0.0",
+  "description": "48 cute animal avatars (128x128 PNG) with a React component.",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "avatars",
+    "index.js",
+    "index.d.ts",
+    "README.md"
+  ],
+  "license": "MIT"
+}

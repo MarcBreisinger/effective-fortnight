@@ -24,7 +24,25 @@ export const authAPI = {
     axios.post(`${API_URL}/auth/register`, registrationData),
   
   getCurrentUser: () => 
-    axios.get(`${API_URL}/auth/me`)
+    axios.get(`${API_URL}/auth/me`),
+  
+  updateProfile: (profileData) =>
+    axios.put(`${API_URL}/auth/profile`, profileData),
+  
+  updateChildName: (childId, name) =>
+    axios.put(`${API_URL}/auth/children/${childId}`, { name }),
+  
+  linkChild: (registrationCode) =>
+    axios.post(`${API_URL}/auth/link-child`, { registrationCode }),
+  
+  forgotPassword: (email) =>
+    axios.post(`${API_URL}/auth/forgot-password`, { email }),
+  
+  resetPassword: (token, password) =>
+    axios.post(`${API_URL}/auth/reset-password`, { token, password }),
+  
+  verifyResetToken: (token) =>
+    axios.get(`${API_URL}/auth/verify-reset-token/${token}`)
 };
 
 export const childrenAPI = {
@@ -60,12 +78,30 @@ export const scheduleAPI = {
   updateCapacity: (date, capacityLimit) => 
     axios.patch(`${API_URL}/schedules/date/${date}/capacity`, { capacityLimit }),
   
+  updateRotation: (date, groupOrder) => 
+    axios.patch(`${API_URL}/schedules/date/${date}/rotation`, { groupOrder }),
+  
   getChildrenByDate: (date) => 
     axios.get(`${API_URL}/schedules/date/${date}/children`)
+};
+
+export const attendanceAPI = {
+  getStatus: (childId, date) => 
+    axios.get(`${API_URL}/attendance/child/${childId}/date/${date}`),
+  
+  updateStatus: (childId, date, status, parentMessage) => 
+    axios.post(`${API_URL}/attendance/child/${childId}/date/${date}`, { 
+      status, 
+      parentMessage 
+    }),
+  
+  getWaitingList: (date) => 
+    axios.get(`${API_URL}/attendance/waiting-list/date/${date}`)
 };
 
 export default {
   authAPI,
   childrenAPI,
-  scheduleAPI
+  scheduleAPI,
+  attendanceAPI
 };

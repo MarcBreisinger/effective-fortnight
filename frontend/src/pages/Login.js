@@ -7,13 +7,17 @@ import {
   TextField,
   Button,
   Typography,
-  Alert
+  Alert,
+  IconButton
 } from '@mui/material';
+import LanguageIcon from '@mui/icons-material/Language';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const { t, language, toggleLanguage } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -38,11 +42,20 @@ function Login() {
     <Container maxWidth="sm">
       <Box sx={{ mt: 8, mb: 4 }}>
         <Paper elevation={3} sx={{ p: 4 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+            <IconButton onClick={toggleLanguage} color="primary">
+              <LanguageIcon />
+              <Typography variant="caption" sx={{ ml: 0.5 }}>
+                {language === 'en' ? 'DE' : 'EN'}
+              </Typography>
+            </IconButton>
+          </Box>
+          
           <Typography variant="h4" component="h1" gutterBottom align="center">
-            Day-Care Rotation
+            {t('dayCareRotationSchedule')}
           </Typography>
           <Typography variant="h6" gutterBottom align="center" color="text.secondary">
-            Login
+            {t('login')}
           </Typography>
 
           {error && (
@@ -53,7 +66,7 @@ function Login() {
 
           <form onSubmit={handleSubmit}>
             <TextField
-              label="Email"
+              label={t('email')}
               type="email"
               fullWidth
               margin="normal"
@@ -63,7 +76,7 @@ function Login() {
               autoComplete="email"
             />
             <TextField
-              label="Password"
+              label={t('password')}
               type="password"
               fullWidth
               margin="normal"
@@ -80,15 +93,23 @@ function Login() {
               sx={{ mt: 3, mb: 2 }}
               disabled={loading}
             >
-              {loading ? 'Logging in...' : 'Login'}
+              {loading ? t('loading') : t('loginButton')}
             </Button>
           </form>
 
           <Box sx={{ mt: 2, textAlign: 'center' }}>
             <Typography variant="body2">
-              Don't have an account?{' '}
+              <Link to="/forgot-password" style={{ textDecoration: 'none', color: '#1976d2' }}>
+                {t('forgotPassword')}
+              </Link>
+            </Typography>
+          </Box>
+
+          <Box sx={{ mt: 2, textAlign: 'center' }}>
+            <Typography variant="body2">
+              {t('register')}{' '}
               <Link to="/register" style={{ textDecoration: 'none', color: '#1976d2' }}>
-                Register with code
+                {t('registrationCode')}
               </Link>
             </Typography>
           </Box>

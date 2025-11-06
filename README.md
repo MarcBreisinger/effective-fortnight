@@ -154,9 +154,17 @@ A web application for visualizing and managing day-care rotation schedules with 
 
 ## Initial Usage
 
-### Creating Staff Account
+### Initial Staff Account
 
-Since the first staff account needs to be created directly in the database:
+The database schema automatically creates an initial staff account:
+- **Email**: `staff@daycare.local`
+- **Password**: `048204`
+
+**⚠️ Important**: Change this password after first login for security!
+
+### Creating Additional Staff Accounts
+
+To create additional staff accounts directly in the database:
 
 ```sql
 -- Connect to your database
@@ -166,7 +174,7 @@ VALUES ('staff@daycare.com', '$2b$10$HASHED_PASSWORD', 'Admin', 'User', 'staff')
 
 Use a bcrypt hash for the password. You can generate one using:
 ```javascript
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const hash = await bcrypt.hash('your_password', 10);
 console.log(hash);
 ```
