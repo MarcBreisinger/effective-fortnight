@@ -1,0 +1,36 @@
+# Recommended additions to .zshrc for robust PATH setup
+# Add these lines to the beginning of your PATH configuration section
+
+# ===== ROBUST PATH CONFIGURATION =====
+# Ensure essential system paths are always available first
+export PATH="/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:$PATH"
+
+# Then add custom tools (existing configuration can stay after this)
+
+# ===== EXISTING PATH ADDITIONS =====
+# Your current PATH modifications would go here:
+# export PATH=$HOME/bin:/usr/local/bin:$PATH  # <- This line could be simplified since /usr/local/bin is now included above
+# PATH="${JAVA_HOME}/bin:$PATH"
+# PATH="/Users/q247532/Library/apache-maven-3.6.3/bin:$PATH"
+# ... etc
+
+# ===== NVM CONFIGURATION IMPROVEMENT =====
+# Load nvm and set a default version
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+# Set default node version (optional - consider removing hardcoded version)
+# nvm use 18.0.0  # Consider using 'nvm alias default 18.0.0' instead
+
+# ===== PATH VERIFICATION (Optional Debug) =====
+# Uncomment the next line to see PATH when terminal starts (helpful for debugging)
+# echo "PATH loaded: $PATH"
+
+# ===== BACKUP SYSTEM =====
+# Function to quickly fix PATH if it gets corrupted
+fix_path() {
+    export PATH="/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin:$PATH"
+    source ~/.nvm/nvm.sh
+    echo "✅ PATH restored"
+}
