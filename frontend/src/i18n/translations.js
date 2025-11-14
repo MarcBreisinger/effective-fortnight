@@ -97,6 +97,8 @@ export const translations = {
     noChildrenWaitingList: 'No children on the waiting list',
     addedAt: 'Added at',
     by: 'by',
+    slotYieldedBy: 'Slot yielded by',
+    at: 'at',
     
     // Status Labels
     staysHome: 'stays home',
@@ -289,6 +291,8 @@ export const translations = {
     noChildrenWaitingList: 'Keine Kinder auf der Warteliste',
     addedAt: 'Hinzugefügt um',
     by: 'von',
+    slotYieldedBy: 'Platz abgegeben von',
+    at: 'um',
     
     // Status Labels
     staysHome: 'bleibt zu Hause',

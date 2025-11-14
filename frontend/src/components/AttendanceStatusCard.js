@@ -97,7 +97,7 @@ function AttendanceStatusCard({ child, selectedDate, canAttend, isAdditionallyAt
 
   if (isSlotGivenUp) {
     statusMessage = `${child.name} ${t('doesNotHaveSlot')}`;
-    statusDetails = `${format(new Date(status.updated_at), 'HH:mm')} ${t('by')} ${status.updated_by.first_name} ${status.updated_by.last_name}`;
+    statusDetails = `${t('slotYieldedBy')} ${status.updated_by.first_name} ${status.updated_by.last_name} ${t('at')} ${format(new Date(status.updated_at), 'HH:mm dd.MM.yyyy')}`;
     if (status.parent_message) {
       statusDetails += `\n${status.parent_message}`;
     }
