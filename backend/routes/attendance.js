@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticateToken, requireParent } = require('../middleware/auth');
+const { processSlotGiveUp } = require('../utils/waitingListProcessor');
 
 const router = express.Router();
 
@@ -109,98 +110,49 @@ router.post('/child/:childId/date/:date',
         );
       }
 
-      // If joining waiting list, check if there's capacity and auto-assign
-      if (status === 'waiting_list') {
-        console.log('Processing waiting list auto-assignment for child:', childId, 'date:', date);
-        const GROUP_CAPACITY = 12;
-        
-        // Get child's group
-        const [child] = await db.query('SELECT assigned_group FROM children WHERE id = ?', [childId]);
-        console.log('Child query result:', child);
-        
-        if (child.length > 0) {
-          const childGroup = child[0].assigned_group;
-          console.log('Child group:', childGroup);
+      // Get child's group for potential processing
+      const [childData] = await db.query('SELECT assigned_group FROM children WHERE id = ?', [childId]);
+      const childGroup = childData.length > 0 ? childData[0].assigned_group : null;
+
+      // Get schedule for the date to know attending groups
+      const [schedules] = await db.query(
+        'SELECT attending_groups FROM daily_schedules WHERE schedule_date = ?',
+        [date]
+      );
+      const attendingGroups = schedules.length > 0 ? JSON.parse(schedules[0].attending_groups) : ['A', 'B', 'C', 'D'];
+
+      // If giving up slot, trigger waiting list processing
+      if (status === 'slot_given_up' && childGroup) {
+        console.log('[Attendance] Slot given up by child in group', childGroup, '- processing waiting list');
+        try {
+          const processingResults = await processSlotGiveUp(date, childGroup, attendingGroups);
+          console.log('[Attendance] Waiting list processing results:', processingResults);
+        } catch (processingError) {
+          console.error('[Attendance] Error processing slot give-up:', processingError);
+          // Don't fail the request if processing fails
+        }
+      }
+
+      // If joining waiting list, immediately check if they can be auto-assigned
+      if (status === 'waiting_list' && childGroup) {
+        console.log('[Attendance] Child joining waiting list, checking for immediate assignment');
+        try {
+          // Process this specific child by running full waiting list check
+          // This will auto-assign if capacity is available
+          const { processWaitingList } = require('../utils/waitingListProcessor');
+          const processingResults = await processWaitingList(date, attendingGroups);
+          console.log('[Attendance] Immediate waiting list processing results:', processingResults);
           
-          // Get schedule for the date
-          const [schedules] = await db.query(
-            'SELECT attending_groups FROM daily_schedules WHERE schedule_date = ?',
-            [date]
-          );
-          console.log('Schedule query result:', schedules);
-          
-          let attendingGroups = ['A', 'B', 'C', 'D'];
-          if (schedules.length > 0) {
-            attendingGroups = JSON.parse(schedules[0].attending_groups);
+          // Check if this child was auto-assigned
+          const wasAssigned = processingResults.assignedFromWaitingList.some(c => c.child_id === parseInt(childId)) ||
+                             processingResults.reassignedToRegularSlots.some(c => c.child_id === parseInt(childId));
+          if (wasAssigned) {
+            finalStatus = 'attending';
+            console.log('[Attendance] Child was immediately auto-assigned');
           }
-          console.log('Attending groups:', attendingGroups);
-          
-          const isChildGroupAttending = attendingGroups.includes(childGroup);
-          console.log('Is child group attending?', isChildGroupAttending);
-          
-          // Case 1: Child's group is attending - check if their group has capacity
-          if (isChildGroupAttending) {
-            console.log('Case 1: Checking capacity for group', childGroup);
-            const [groupCount] = await db.query(
-              `SELECT COUNT(*) as count FROM children c
-               LEFT JOIN daily_attendance_status das ON c.id = das.child_id AND das.attendance_date = ?
-               WHERE c.assigned_group = ? 
-               AND c.id != ?
-               AND (das.status IS NULL OR das.status = 'attending')`,
-              [date, childGroup, childId]
-            );
-            console.log('Group count (excluding current child):', groupCount[0].count);
-            
-            if (groupCount[0].count < GROUP_CAPACITY) {
-              console.log('Capacity available! Auto-assigning to attending');
-              // Auto-assign back to attending
-              await db.query(
-                `UPDATE daily_attendance_status 
-                 SET status = 'attending'
-                 WHERE child_id = ? AND attendance_date = ?`,
-                [childId, date]
-              );
-              finalStatus = 'attending'; // Update for response
-            } else {
-              console.log('No capacity in child\'s group');
-            }
-          }
-          // Case 2: Child's group is NOT attending - check if ANY attending group has capacity
-          else {
-            console.log('Case 2: Child\'s group not attending, checking other groups');
-            let hasGeneralCapacity = false;
-            
-            for (const group of attendingGroups) {
-              const [groupCount] = await db.query(
-                `SELECT COUNT(*) as count FROM children c
-                 LEFT JOIN daily_attendance_status das ON c.id = das.child_id AND das.attendance_date = ?
-                 WHERE c.assigned_group = ? 
-                 AND (das.status IS NULL OR das.status = 'attending')`,
-                [date, group]
-              );
-              console.log(`Group ${group} count:`, groupCount[0].count);
-              
-              if (groupCount[0].count < GROUP_CAPACITY) {
-                hasGeneralCapacity = true;
-                console.log(`Capacity found in group ${group}`);
-                break;
-              }
-            }
-            
-            if (hasGeneralCapacity) {
-              console.log('General capacity available! Auto-assigning to attending');
-              // Auto-assign to attending (will show in additionally_attending list)
-              await db.query(
-                `UPDATE daily_attendance_status 
-                 SET status = 'attending'
-                 WHERE child_id = ? AND attendance_date = ?`,
-                [childId, date]
-              );
-              finalStatus = 'attending'; // Update for response
-            } else {
-              console.log('No capacity available anywhere');
-            }
-          }
+        } catch (processingError) {
+          console.error('[Attendance] Error processing waiting list:', processingError);
+          // Don't fail the request if processing fails
         }
       }
 

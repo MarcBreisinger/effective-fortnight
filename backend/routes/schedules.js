@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticateToken, requireStaff } = require('../middleware/auth');
+const { processWaitingList } = require('../utils/waitingListProcessor');
 
 const router = express.Router();
 
@@ -201,15 +202,36 @@ router.patch('/date/:date/capacity',
         );
       }
 
-      res.json({
-        message: 'Capacity updated successfully',
-        schedule: {
-          schedule_date: date,
-          group_order: groupOrder,
-          capacity_limit: capacityLimit,
-          attending_groups: attendingGroups
-        }
-      });
+      // Process waiting list after capacity change
+      // This handles automatic reassignment when capacity increases or groups change
+      try {
+        const processingResults = await processWaitingList(date, attendingGroups);
+        console.log('[Schedules] Waiting list processing results:', processingResults);
+        
+        res.json({
+          message: 'Capacity updated successfully',
+          schedule: {
+            schedule_date: date,
+            group_order: groupOrder,
+            capacity_limit: capacityLimit,
+            attending_groups: attendingGroups
+          },
+          processing_results: processingResults
+        });
+      } catch (processingError) {
+        console.error('[Schedules] Waiting list processing error:', processingError);
+        // Still return success even if processing fails - capacity was updated
+        res.json({
+          message: 'Capacity updated successfully',
+          schedule: {
+            schedule_date: date,
+            group_order: groupOrder,
+            capacity_limit: capacityLimit,
+            attending_groups: attendingGroups
+          },
+          processing_error: 'Failed to process waiting list automatically'
+        });
+      }
     } catch (error) {
       console.error('Update capacity error:', error);
       res.status(500).json({ error: 'Failed to update capacity' });
