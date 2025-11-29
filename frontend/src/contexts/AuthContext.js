@@ -21,7 +21,15 @@ export const AuthProvider = ({ children }) => {
   const fetchUser = useCallback(async () => {
     try {
       const response = await axios.get(`${API_URL}/auth/me`);
-      setUser(response.data);
+      const userData = response.data;
+      setUser(userData);
+      
+      // Sync user's language preference with localStorage
+      if (userData.language) {
+        localStorage.setItem('language', userData.language);
+        // Dispatch custom event to notify LanguageContext of the change
+        window.dispatchEvent(new CustomEvent('languageChanged', { detail: userData.language }));
+      }
     } catch (error) {
       console.error('Failed to fetch user:', error);
       logout();
@@ -48,6 +56,13 @@ export const AuthProvider = ({ children }) => {
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     setUser(userData);
     
+    // Sync user's language preference with localStorage
+    if (userData.language) {
+      localStorage.setItem('language', userData.language);
+      // Dispatch custom event to notify LanguageContext of the change
+      window.dispatchEvent(new CustomEvent('languageChanged', { detail: userData.language }));
+    }
+    
     return userData;
   };
 
@@ -58,6 +73,13 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('token', token);
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     setUser(userData);
+    
+    // Sync user's language preference with localStorage
+    if (userData.language) {
+      localStorage.setItem('language', userData.language);
+      // Dispatch custom event to notify LanguageContext of the change
+      window.dispatchEvent(new CustomEvent('languageChanged', { detail: userData.language }));
+    }
     
     return userData;
   };

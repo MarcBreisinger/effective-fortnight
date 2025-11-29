@@ -64,7 +64,7 @@ router.post('/child/:childId/date/:date',
   authenticateToken,
   requireParent,
   [
-    body('status').isIn(['attending', 'slot_given_up', 'waiting_list']),
+    body('status').isIn(['attending', 'slot_given_up', 'waiting_list', 'remove_waiting_list']),
     body('parentMessage').optional().isString()
   ],
   async (req, res) => {
@@ -85,6 +85,33 @@ router.post('/child/:childId/date/:date',
       );
       if (links.length === 0) {
         return res.status(403).json({ error: 'Access denied to this child' });
+      }
+
+      // Special handling for removing from waiting list
+      if (status === 'remove_waiting_list') {
+        // Simply delete the status entry - child withdraws from queue
+        await db.query(
+          'DELETE FROM daily_attendance_status WHERE child_id = ? AND attendance_date = ?',
+          [childId, date]
+        );
+        
+        console.log('[Attendance] Child removed from waiting list - status deleted');
+        
+        // Return success - child is back to default state (no slot)
+        return res.json({
+          message: 'Removed from waiting list successfully',
+          status: {
+            child_id: parseInt(childId),
+            attendance_date: date,
+            status: null, // No status means no slot
+            parent_message: null,
+            updated_by: {
+              first_name: req.user.first_name,
+              last_name: req.user.last_name
+            },
+            updated_at: new Date().toISOString()
+          }
+        });
       }
 
       // Check if status already exists
@@ -168,7 +195,24 @@ router.post('/child/:childId/date/:date',
       console.log('Updated status query result:', updated);
 
       if (updated.length === 0) {
-        return res.status(500).json({ error: 'Failed to retrieve updated status' });
+        // Status was deleted - child was auto-restored to regular attendance
+        // This happens when processWaitingList() finds child's group is attending with capacity
+        console.log('[Attendance] Status entry deleted - child restored to regular attendance');
+        return res.json({
+          message: 'Attendance status updated successfully',
+          status: {
+            child_id: parseInt(childId),
+            attendance_date: date,
+            status: 'attending', // No status entry means attending by default
+            parent_message: null,
+            updated_by: {
+              first_name: req.user.first_name,
+              last_name: req.user.last_name
+            },
+            updated_at: new Date().toISOString()
+          },
+          auto_assigned: true // Indicate this was an automatic assignment
+        });
       }
 
       res.json({

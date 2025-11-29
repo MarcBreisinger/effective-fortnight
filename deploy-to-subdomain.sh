@@ -15,21 +15,16 @@ APP_DIR="daycare-app"
 
 echo "=== Deploying to daycare.marcb.uber.space ==="
 
-# Step 1: Add subdomain on Uberspace (if not already added)
+# Step 1: Build frontend with production settings
 echo ""
-echo "Step 1: Adding subdomain to Uberspace..."
-ssh $SERVER "uberspace web domain add daycare.marcb.uber.space || echo 'Subdomain already exists'"
-
-# Step 2: Build frontend with production settings
-echo ""
-echo "Step 2: Building frontend..."
+echo "Step 1: Building frontend..."
 cd frontend
 npm run build
 cd ..
 
-# Step 3: Upload backend files
+# Step 2: Upload backend files
 echo ""
-echo "Step 3: Uploading backend files..."
+echo "Step 2: Uploading backend files..."
 rsync -avz --delete \
   --exclude 'node_modules' \
   --exclude '.env' \
@@ -38,15 +33,21 @@ rsync -avz --delete \
   --exclude '*.test.js' \
   backend/ $SERVER:~/$APP_DIR/backend/
 
-# Step 4: Upload frontend build
+# Step 3: Upload frontend build
 echo ""
-echo "Step 4: Uploading frontend build..."
+echo "Step 3: Uploading frontend build..."
 rsync -avz --delete frontend/build/ $SERVER:~/$APP_DIR/frontend-build/
 
-# Step 5: Install backend dependencies and configure
+# Step 4: Configure and restart service on server (single SSH session)
 echo ""
-echo "Step 5: Configuring backend on server..."
+echo "Step 4: Configuring server (single SSH session)..."
 ssh $SERVER << 'ENDSSH'
+# Add subdomain on Uberspace (if not already added)
+echo "Adding subdomain to Uberspace..."
+uberspace web domain add daycare.marcb.uber.space || echo 'Subdomain already exists'
+
+# Install backend dependencies and configure
+echo "Configuring backend..."
 cd ~/daycare-app/backend
 
 # Install production dependencies
@@ -76,22 +77,19 @@ else
 fi
 
 echo "Backend configured."
+
+# Configure web backend to route subdomain to Node.js
+echo "Configuring web backend for subdomain..."
+uberspace web backend set daycare.marcb.uber.space --http --port 5000
+
+# Restart supervisor service
+echo "Restarting backend service..."
+supervisorctl restart daycare-backend
+
+# Check service status
+echo "Checking service status..."
+supervisorctl status daycare-backend
 ENDSSH
-
-# Step 6: Configure web backend to route subdomain to Node.js
-echo ""
-echo "Step 6: Configuring web backend for subdomain..."
-ssh $SERVER "uberspace web backend set daycare.marcb.uber.space --http --port 5000"
-
-# Step 7: Restart supervisor service
-echo ""
-echo "Step 7: Restarting backend service..."
-ssh $SERVER "supervisorctl restart daycare-backend"
-
-# Step 8: Check service status
-echo ""
-echo "Step 8: Checking service status..."
-ssh $SERVER "supervisorctl status daycare-backend"
 
 echo ""
 echo "=== Deployment Complete! ==="

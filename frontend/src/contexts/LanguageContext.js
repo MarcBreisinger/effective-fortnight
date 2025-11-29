@@ -12,15 +12,24 @@ export const useLanguage = () => {
 };
 
 export const LanguageProvider = ({ children }) => {
-  // Get initial language from localStorage or default to English
+  // Get initial language from localStorage or default to German
   const [language, setLanguageState] = useState(() => {
     const saved = localStorage.getItem('language');
-    return saved || 'en';
+    return saved || 'de';
   });
 
   const setLanguage = useCallback((lang) => {
     setLanguageState(lang);
     localStorage.setItem('language', lang);
+  }, []);
+
+  // Listen for language changes from AuthContext (when user logs in)
+  React.useEffect(() => {
+    const handleLanguageChanged = (event) => {
+      setLanguageState(event.detail);
+    };
+    window.addEventListener('languageChanged', handleLanguageChanged);
+    return () => window.removeEventListener('languageChanged', handleLanguageChanged);
   }, []);
 
   const toggleLanguage = useCallback(() => {

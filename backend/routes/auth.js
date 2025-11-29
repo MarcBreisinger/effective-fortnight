@@ -17,7 +17,8 @@ router.post('/register',
     body('lastName').notEmpty().trim(),
     body('email').isEmail().normalizeEmail(),
     body('phone').optional().trim(),
-    body('password').isLength({ min: 6 })
+    body('password').isLength({ min: 6 }),
+    body('language').optional().isIn(['en', 'de'])
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -25,7 +26,7 @@ router.post('/register',
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { registrationCode, firstName, lastName, email, phone, password } = req.body;
+    const { registrationCode, firstName, lastName, email, phone, password, language } = req.body;
 
     try {
       // Verify registration code exists
@@ -53,10 +54,10 @@ router.post('/register',
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Create user
+      // Create user with language preference
       const [result] = await db.query(
-        'INSERT INTO users (email, password, first_name, last_name, phone, role) VALUES (?, ?, ?, ?, ?, ?)',
-        [email, hashedPassword, firstName, lastName, phone || null, 'parent']
+        'INSERT INTO users (email, password, first_name, last_name, phone, role, language) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [email, hashedPassword, firstName, lastName, phone || null, 'parent', language || 'de']
       );
 
       const userId = result.insertId;
@@ -120,7 +121,7 @@ router.post('/login',
 
     try {
       const [users] = await db.query(
-        'SELECT id, email, password, first_name, last_name, role FROM users WHERE email = ?',
+        'SELECT id, email, password, first_name, last_name, role, language FROM users WHERE email = ?',
         [email]
       );
 
@@ -178,6 +179,7 @@ router.post('/login',
           firstName: user.first_name,
           lastName: user.last_name,
           role: user.role,
+          language: user.language || 'de',
           children
         }
       });
@@ -192,7 +194,7 @@ router.post('/login',
 router.get('/me', authenticateToken, async (req, res) => {
   try {
     const [users] = await db.query(
-      'SELECT id, email, first_name, last_name, phone, role FROM users WHERE id = ?',
+      'SELECT id, email, first_name, last_name, phone, role, language FROM users WHERE id = ?',
       [req.user.id]
     );
 
@@ -222,6 +224,7 @@ router.get('/me', authenticateToken, async (req, res) => {
       lastName: user.last_name,
       phone: user.phone,
       role: user.role,
+      language: user.language || 'de',
       children
     });
   } catch (error) {
@@ -237,7 +240,8 @@ router.put('/profile',
     body('firstName').notEmpty().trim(),
     body('lastName').notEmpty().trim(),
     body('email').isEmail().normalizeEmail(),
-    body('phone').optional().trim()
+    body('phone').optional().trim(),
+    body('language').optional().isIn(['en', 'de'])
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -245,7 +249,7 @@ router.put('/profile',
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { firstName, lastName, email, phone } = req.body;
+    const { firstName, lastName, email, phone, language } = req.body;
 
     try {
       // Check if email is already used by another user
@@ -258,11 +262,18 @@ router.put('/profile',
         return res.status(400).json({ error: 'Email already in use by another account' });
       }
 
-      // Update user profile
-      await db.query(
-        'UPDATE users SET first_name = ?, last_name = ?, email = ?, phone = ? WHERE id = ?',
-        [firstName, lastName, email, phone || null, req.user.id]
-      );
+      // Update user profile (including language if provided)
+      if (language !== undefined) {
+        await db.query(
+          'UPDATE users SET first_name = ?, last_name = ?, email = ?, phone = ?, language = ? WHERE id = ?',
+          [firstName, lastName, email, phone || null, language, req.user.id]
+        );
+      } else {
+        await db.query(
+          'UPDATE users SET first_name = ?, last_name = ?, email = ?, phone = ? WHERE id = ?',
+          [firstName, lastName, email, phone || null, req.user.id]
+        );
+      }
 
       res.json({
         message: 'Profile updated successfully',
@@ -272,6 +283,7 @@ router.put('/profile',
           lastName,
           email,
           phone,
+          language: language || req.user.language,
           role: req.user.role
         }
       });
@@ -417,9 +429,9 @@ router.post('/forgot-password',
     const { email } = req.body;
 
     try {
-      // Find user by email
+      // Find user by email (including language preference)
       const [users] = await db.query(
-        'SELECT id, first_name, email FROM users WHERE email = ?',
+        'SELECT id, first_name, email, language FROM users WHERE email = ?',
         [email]
       );
 
@@ -446,9 +458,9 @@ router.post('/forgot-password',
         [user.id, hashedToken, expiresAt]
       );
 
-      // Send email
+      // Send email in user's preferred language
       try {
-        await sendPasswordResetEmail(user.email, resetToken, user.first_name);
+        await sendPasswordResetEmail(user.email, resetToken, user.first_name, user.language || 'de');
       } catch (emailError) {
         console.error('Failed to send password reset email:', emailError);
         // Don't reveal email sending failures to prevent enumeration

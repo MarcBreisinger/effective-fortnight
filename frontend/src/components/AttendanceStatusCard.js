@@ -111,7 +111,7 @@ function AttendanceStatusCard({ child, selectedDate, canAttend, isAdditionallyAt
       statusDetails += `\n${status.parent_message}`;
     }
     buttonText = t('removeFromWaitingList');
-    buttonAction = 'slot_given_up';
+    buttonAction = 'remove_waiting_list';
     severity = 'info';
   } else if (isAttending && (canAttend || isAdditionallyAttending)) {
     // Child is attending AND (their group is allowed OR they're in additionally_attending list)
@@ -185,7 +185,8 @@ function AttendanceStatusCard({ child, selectedDate, canAttend, isAdditionallyAt
         <DialogTitle>
           {actionType === 'slot_given_up' ? t('giveUpSlot') : 
            actionType === 'waiting_list' ? t('joinWaitingList') : 
-           t('removeFromWaitingList')}
+           actionType === 'remove_waiting_list' ? t('removeFromWaitingList') :
+           t('updateStatus')}
         </DialogTitle>
         <DialogContent>
           {error && (
@@ -199,7 +200,9 @@ function AttendanceStatusCard({ child, selectedDate, canAttend, isAdditionallyAt
               t('confirmGiveUpSlot').replace('#', child.name) :
              actionType === 'waiting_list' ?
               t('confirmJoinWaitingList').replace('#', child.name) :
-              t('confirmRemoveWaitingList').replace('#', child.name)
+             actionType === 'remove_waiting_list' ?
+              t('confirmRemoveWaitingList').replace('#', child.name) :
+              ''
             }
           </Typography>
 

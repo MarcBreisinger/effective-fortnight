@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "init-db": "node scripts/initDatabase.js",
+    "setup-db": "cd scripts && ./setup-database.sh",
     "test": "jest --coverage",
     "test:watch": "jest --watch"
   },

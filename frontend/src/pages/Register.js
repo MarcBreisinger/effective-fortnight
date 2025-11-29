@@ -60,7 +60,8 @@ function Register() {
         lastName: formData.lastName,
         email: formData.email,
         phone: formData.phone || undefined,
-        password: formData.password
+        password: formData.password,
+        language: language // Include user's current language preference
       });
       navigate('/');
     } catch (err) {

@@ -23,22 +23,27 @@ async function processWaitingList(date, attendingGroups) {
   try {
     // STEP 1: Clear statuses for children whose groups are now attending
     // If a child's group is back in attendingGroups, they should automatically get their regular slot
+    // CRITICAL: Children whose group is attending but are at capacity should NOT be restored
+    // This prevents displacing children with 'attending' status
     const [childrenToRestore] = await db.query(
       `SELECT das.id, das.child_id, c.name as child_name, c.assigned_group, das.status
        FROM daily_attendance_status das
        JOIN children c ON das.child_id = c.id
        WHERE das.attendance_date = ? 
-       AND das.status IN ('waiting_list', 'slot_given_up')
+       AND das.status = 'waiting_list'
        AND c.assigned_group IN (?)`,
       [date, attendingGroups]
     );
 
-    console.log(`[WaitingListProcessor] Found ${childrenToRestore.length} children whose groups are now attending`);
+    console.log(`[WaitingListProcessor] Found ${childrenToRestore.length} children whose groups are now attending (excluding those who gave up slots)`);
 
     for (const child of childrenToRestore) {
       // Check if their group has capacity
+      // Count children who are attending in this group
+      // IMPORTANT: Count includes children with 'attending' status from OTHER groups who are additionally attending
       const [groupCount] = await db.query(
-        `SELECT COUNT(*) as count FROM children c
+        `SELECT c.id, c.name, c.assigned_group, das.status
+         FROM children c
          LEFT JOIN daily_attendance_status das ON c.id = das.child_id AND das.attendance_date = ?
          WHERE c.assigned_group = ? 
          AND c.id != ?
@@ -46,14 +51,35 @@ async function processWaitingList(date, attendingGroups) {
         [date, child.assigned_group, child.child_id]
       );
 
-      if (groupCount[0].count < GROUP_CAPACITY) {
+      // Also count children from OTHER groups who are additionally attending with THIS group
+      const [additionallyAttending] = await db.query(
+        `SELECT c.id, c.name, c.assigned_group
+         FROM children c
+         JOIN daily_attendance_status das ON c.id = das.child_id AND das.attendance_date = ?
+         WHERE c.assigned_group != ?
+         AND das.status = 'attending'`,
+        [date, child.assigned_group]
+      );
+
+      const currentCapacity = groupCount.length + additionallyAttending.length;
+      
+      console.log(`[WaitingListProcessor] Attempting to restore ${child.child_name} (Group ${child.assigned_group}) to their own group`);
+      console.log(`[WaitingListProcessor] Group ${child.assigned_group} can attend: ${attendingGroups.includes(child.assigned_group)}`);
+      console.log(`[WaitingListProcessor] Group ${child.assigned_group} has ${currentCapacity}/${GROUP_CAPACITY} capacity`);
+      console.log(`[WaitingListProcessor] Group ${child.assigned_group} has ${groupCount.length}/${GROUP_CAPACITY} children: ${groupCount.map(c => c.name).join(', ')}`);
+      if (additionallyAttending.length > 0) {
+        console.log(`[WaitingListProcessor] Additionally attending from other groups: ${additionallyAttending.map(c => `${c.name} (Group ${c.assigned_group})`).join(', ')}`);
+      }
+      
+      if (currentCapacity < GROUP_CAPACITY) {
+        // SAFE: There's actual free capacity, no one needs to be displaced
         // Delete status record (reverts to default 'attending' behavior)
         await db.query(
           'DELETE FROM daily_attendance_status WHERE child_id = ? AND attendance_date = ?',
           [child.child_id, date]
         );
 
-        console.log(`[WaitingListProcessor] Cleared status for ${child.child_name} (Group ${child.assigned_group})`);
+        console.log(`[WaitingListProcessor] ✓ Restored ${child.child_name} to Group ${child.assigned_group} - capacity available`);
         
         results.reassignedToRegularSlots.push({
           child_id: child.child_id,
@@ -62,7 +88,9 @@ async function processWaitingList(date, attendingGroups) {
           previous_status: child.status
         });
       } else {
-        console.log(`[WaitingListProcessor] Group ${child.assigned_group} is at capacity, cannot restore ${child.child_name}`);
+        // Group is at capacity - child must stay on waiting list
+        // They CANNOT displace someone with 'attending' status
+        console.log(`[WaitingListProcessor] ✗ Cannot restore ${child.child_name} - no capacity in Group ${child.assigned_group}`);
       }
     }
 

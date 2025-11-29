@@ -85,7 +85,7 @@ export const translations = {
     joinWaitingList: 'Join Waiting List',
     confirmGiveUpSlot: 'Are you sure # will not attend today? This will free up a slot for other children.',
     confirmJoinWaitingList: 'Add # to the waiting list for today. If a slot becomes available, you will be notified.',
-    confirmRemoveWaitingList: 'Remove # from the waiting list? This will return them to not having a day care slot for today.',
+    confirmRemoveWaitingList: 'Remove # from the waiting list? They were not attending yet, just waiting for a slot.',
     optionalMessage: 'Optional message',
     additionalInfo: 'Add any additional information...',
     
@@ -279,7 +279,7 @@ export const translations = {
     joinWaitingList: 'Warteliste beitreten',
     confirmGiveUpSlot: 'Sind Sie sicher, dass # heute nicht teilnimmt? Dadurch wird ein Platz für andere Kinder frei.',
     confirmJoinWaitingList: '# zur heutigen Warteliste hinzufügen. Falls ein Platz frei wird, werden Sie benachrichtigt.',
-    confirmRemoveWaitingList: '# von der Warteliste entfernen? Das Kind hat dann heute keinen Kita-Platz mehr.',
+    confirmRemoveWaitingList: '# von der Warteliste entfernen? Das Kind hat noch keinen Platz, sondern wartet nur auf einen.',
     optionalMessage: 'Optionale Nachricht',
     additionalInfo: 'Zusätzliche Informationen hinzufügen...',
     
