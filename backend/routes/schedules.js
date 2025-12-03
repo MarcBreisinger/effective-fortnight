@@ -116,11 +116,24 @@ router.post('/date/:date',
     try {
       // Check if schedule exists
       const [existing] = await db.query(
-        'SELECT id FROM daily_schedules WHERE schedule_date = ?',
+        'SELECT id, group_order, capacity_limit, attending_groups FROM daily_schedules WHERE schedule_date = ?',
         [date]
       );
 
+      let capacityChanged = false;
+      let rotationChanged = false;
+      let oldCapacity = null;
+      let oldRotation = null;
+
       if (existing.length > 0) {
+        // Check what changed
+        const oldSchedule = existing[0];
+        oldCapacity = oldSchedule.capacity_limit;
+        oldRotation = JSON.parse(oldSchedule.group_order);
+        
+        capacityChanged = oldCapacity !== capacityLimit;
+        rotationChanged = JSON.stringify(oldRotation) !== JSON.stringify(groupOrder);
+        
         // Update existing
         await db.query(
           `UPDATE daily_schedules 
@@ -134,6 +147,48 @@ router.post('/date/:date',
           `INSERT INTO daily_schedules (schedule_date, group_order, capacity_limit, attending_groups, created_by_staff)
            VALUES (?, ?, ?, ?, ?)`,
           [date, JSON.stringify(groupOrder), capacityLimit, JSON.stringify(attendingGroups), req.user.id]
+        );
+        
+        // Initial creation counts as changes
+        capacityChanged = true;
+        rotationChanged = true;
+      }
+
+      // Log capacity change
+      if (capacityChanged) {
+        await db.query(
+          `INSERT INTO activity_log (event_type, event_date, child_id, user_id, metadata)
+           VALUES (?, ?, ?, ?, ?)`,
+          [
+            'capacity_changed',
+            date,
+            null,
+            req.user.id,
+            JSON.stringify({
+              old_capacity: oldCapacity,
+              new_capacity: capacityLimit,
+              attending_groups: attendingGroups
+            })
+          ]
+        );
+      }
+
+      // Log rotation change
+      if (rotationChanged) {
+        await db.query(
+          `INSERT INTO activity_log (event_type, event_date, child_id, user_id, metadata)
+           VALUES (?, ?, ?, ?, ?)`,
+          [
+            'rotation_changed',
+            date,
+            null,
+            req.user.id,
+            JSON.stringify({
+              old_order: oldRotation,
+              new_order: groupOrder,
+              attending_groups: attendingGroups
+            })
+          ]
         );
       }
 
@@ -170,16 +225,18 @@ router.patch('/date/:date/capacity',
     try {
       // Get current schedule
       const [schedules] = await db.query(
-        'SELECT group_order FROM daily_schedules WHERE schedule_date = ?',
+        'SELECT group_order, capacity_limit FROM daily_schedules WHERE schedule_date = ?',
         [date]
       );
 
       let groupOrder;
+      let oldCapacity = null;
       if (schedules.length === 0) {
         // Create with default order
         groupOrder = ['A', 'B', 'C', 'D'];
       } else {
         groupOrder = JSON.parse(schedules[0].group_order);
+        oldCapacity = schedules[0].capacity_limit;
       }
 
       // Calculate attending groups
@@ -199,6 +256,25 @@ router.patch('/date/:date/capacity',
            SET capacity_limit = ?, attending_groups = ?
            WHERE schedule_date = ?`,
           [capacityLimit, JSON.stringify(attendingGroups), date]
+        );
+      }
+
+      // Log capacity change
+      if (oldCapacity === null || oldCapacity !== capacityLimit) {
+        await db.query(
+          `INSERT INTO activity_log (event_type, event_date, child_id, user_id, metadata)
+           VALUES (?, ?, ?, ?, ?)`,
+          [
+            'capacity_changed',
+            date,
+            null,
+            req.user.id,
+            JSON.stringify({
+              old_capacity: oldCapacity,
+              new_capacity: capacityLimit,
+              attending_groups: attendingGroups
+            })
+          ]
         );
       }
 
@@ -333,12 +409,19 @@ router.get('/date/:date/children', authenticateToken, async (req, res) => {
               das.status as attendance_status,
               das.parent_message,
               das.updated_at,
-              u.first_name, u.last_name
+              das.occupied_slot_from_child_id,
+              u.first_name, u.last_name,
+              occupied_child.name as occupied_slot_from_child_name,
+              occupier_child.id as slot_used_by_child_id,
+              occupier_child.name as slot_used_by_child_name
        FROM children c
        LEFT JOIN daily_attendance_status das ON c.id = das.child_id AND das.attendance_date = ?
        LEFT JOIN users u ON das.updated_by_user = u.id
+       LEFT JOIN children occupied_child ON das.occupied_slot_from_child_id = occupied_child.id
+       LEFT JOIN daily_attendance_status das_occupier ON das_occupier.occupied_slot_from_child_id = c.id AND das_occupier.attendance_date = ?
+       LEFT JOIN children occupier_child ON das_occupier.child_id = occupier_child.id
        ORDER BY c.assigned_group, c.name`,
-      [date]
+      [date, date]
     );
 
     const GROUP_CAPACITY = 12; // Each group can hold 12 children
@@ -356,7 +439,11 @@ router.get('/date/:date/children', authenticateToken, async (req, res) => {
         updated_by: c.first_name && c.last_name ? {
           first_name: c.first_name,
           last_name: c.last_name
-        } : null
+        } : null,
+        occupied_slot_from_child_id: c.occupied_slot_from_child_id,
+        occupied_slot_from_child_name: c.occupied_slot_from_child_name,
+        slot_used_by_child_id: c.slot_used_by_child_id,
+        slot_used_by_child_name: c.slot_used_by_child_name
       }));
 
     // First pass: calculate capacity for each group
@@ -372,7 +459,9 @@ router.get('/date/:date/children', authenticateToken, async (req, res) => {
           updated_by: c.first_name && c.last_name ? {
             first_name: c.first_name,
             last_name: c.last_name
-          } : null
+          } : null,
+          occupied_slot_from_child_id: c.occupied_slot_from_child_id,
+          occupied_slot_from_child_name: c.occupied_slot_from_child_name
         }));
 
       // Calculate attending count (excluding those who gave up slots or are on waiting list)
@@ -434,7 +523,9 @@ router.get('/date/:date/children', authenticateToken, async (req, res) => {
             updated_by: child.first_name && child.last_name ? {
               first_name: child.first_name,
               last_name: child.last_name
-            } : null
+            } : null,
+            occupied_slot_from_child_id: child.occupied_slot_from_child_id,
+            occupied_slot_from_child_name: child.occupied_slot_from_child_name
           });
           
           // Consume one slot from available capacity

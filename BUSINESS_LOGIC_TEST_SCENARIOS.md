@@ -161,6 +161,32 @@ WHERE child_id = ? AND attendance_date = ?;
 
 **Note:** Removing from waiting list is different from giving up a day care slot. The child was never attending, so there's no slot to free for others. The status should simply be cleared.
 
+### Test 2.1.2: Child Doesn't Need Slot - No Action Taken
+**Initial State:**
+- Capacity: 3 groups (A, B, C attending)
+- Group D excluded from attending
+- Child D1: No status (group not attending)
+- Parent is aware child lost slot
+
+**Action:** Parent views schedule but does NOT click "Child needs day care slot"
+
+**Expected Result:**
+- ✅ No database changes occur
+- ✅ Child D1 remains without a slot
+- ✅ Status box continues to show "Group D is not attending today"
+- ✅ No entry created in `daily_attendance_status` table
+- ✅ Child is neither on waiting list nor additionally attending
+- ✅ Parent can request slot at any later time if needed
+
+**Verification Query:**
+```sql
+SELECT * FROM daily_attendance_status 
+WHERE child_id = ? AND attendance_date = ?;
+-- Should return 0 rows (no status entry - child not requesting slot)
+```
+
+**Note:** This test confirms that the system is passive - it only responds to explicit parent actions. If a parent accepts that their child cannot attend on a particular day, no action is required and no database state changes occur.
+
 ---
 
 ## Scenario 3: Capacity Increase - Automatic Reassignment

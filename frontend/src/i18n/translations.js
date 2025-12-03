@@ -186,11 +186,35 @@ export const translations = {
     failedToUpdateChildName: 'Failed to update child name',
     childNameCannotBeEmpty: 'Child name cannot be empty',
     
+    // Display Preferences
+    displayPreferences: 'Display Preferences',
+    showSlotOccupancyLabel: 'Show whose slot is being occupied',
+    showSlotOccupancyHelp: 'When enabled, you\'ll see which child is using whose slot when children from other groups attend',
+    usingSlotOf: 'Using #\'s slot',
+    slotUsedBy: 'Slot used by #',
+    
     // Errors
     failedToLoadSchedule: 'Failed to load schedule',
     failedToUpdateCapacity: 'Failed to update capacity',
     emailAlreadyRegistered: 'Email already registered',
     invalidEmailOrPassword: 'Invalid email or password',
+    
+    // Activity Log
+    activityLog: {
+      title: 'Today\'s Events',
+      noEvents: 'No events for this day',
+      capacity_changed: '{{user}} changed capacity from {{from}} to {{to}} groups',
+      rotation_changed: '{{user}} changed the rotation order',
+      slot_given_up: '{{user}} gave up slot for {{child}}',
+      slot_reclaimed: '{{user}} reclaimed slot for {{child}}',
+      slot_requested: '{{user}} requested slot for {{child}}',
+      waiting_list_joined: '{{user}} added {{child}} to waiting list',
+      waiting_list_removed: '{{user}} removed {{child}} from waiting list',
+      auto_assigned: '{{child}} was automatically assigned a slot',
+      restored_from_waiting: '{{child}} was restored from waiting list',
+      slot_restored: '{{child}} was restored to regular slot',
+      unknownEvent: 'Unknown event: {{type}}'
+    },
   },
   
   de: {
@@ -380,10 +404,34 @@ export const translations = {
     failedToUpdateChildName: 'Fehler beim Aktualisieren des Kindernamens',
     childNameCannotBeEmpty: 'Kindername darf nicht leer sein',
     
+    // Display Preferences
+    displayPreferences: 'Anzeigeeinstellungen',
+    showSlotOccupancyLabel: 'Anzeigen, wessen Platz belegt wird',
+    showSlotOccupancyHelp: 'Wenn aktiviert, sehen Sie, welches Kind den Platz von wem nutzt, wenn Kinder aus anderen Gruppen teilnehmen',
+    usingSlotOf: 'Nutzt den Platz von #',
+    slotUsedBy: 'Platz wird genutzt von #',
+    
     // Errors
     failedToLoadSchedule: 'Fehler beim Laden des Zeitplans',
     failedToUpdateCapacity: 'Fehler beim Aktualisieren der Kapazität',
     emailAlreadyRegistered: 'E-Mail bereits registriert',
     invalidEmailOrPassword: 'Ungültige E-Mail oder Passwort',
+    
+    // Activity Log
+    activityLog: {
+      title: 'Heutige Ereignisse',
+      noEvents: 'Keine Ereignisse für diesen Tag',
+      capacity_changed: '{{user}} hat Kapazität von {{from}} auf {{to}} Gruppen geändert',
+      rotation_changed: '{{user}} hat die Rotationsreihenfolge geändert',
+      slot_given_up: '{{user}} hat Platz für {{child}} aufgegeben',
+      slot_reclaimed: '{{user}} hat Platz für {{child}} zurückgefordert',
+      slot_requested: '{{user}} hat Platz für {{child}} angefordert',
+      waiting_list_joined: '{{user}} hat {{child}} zur Warteliste hinzugefügt',
+      waiting_list_removed: '{{user}} hat {{child}} von der Warteliste entfernt',
+      auto_assigned: '{{child}} wurde automatisch ein Platz zugewiesen',
+      restored_from_waiting: '{{child}} wurde von der Warteliste wiederhergestellt',
+      slot_restored: '{{child}} wurde auf regulären Platz zurückgesetzt',
+      unknownEvent: 'Unbekanntes Ereignis: {{type}}'
+    },
   }
 };

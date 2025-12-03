@@ -20,7 +20,9 @@ import {
   Avatar,
   ListItemAvatar,
   AppBar,
-  Toolbar
+  Toolbar,
+  FormControlLabel,
+  Switch
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
@@ -44,7 +46,8 @@ const ParentSettings = () => {
     firstName: '',
     lastName: '',
     email: '',
-    phone: ''
+    phone: '',
+    showSlotOccupancy: false
   });
 
   // Children state
@@ -67,7 +70,8 @@ const ParentSettings = () => {
         firstName: user.firstName || '',
         lastName: user.lastName || '',
         email: user.email || '',
-        phone: user.phone || ''
+        phone: user.phone || '',
+        showSlotOccupancy: user.showSlotOccupancy || false
       });
       fetchUserData();
     }
@@ -84,9 +88,10 @@ const ParentSettings = () => {
   };
 
   const handleProfileChange = (e) => {
+    const { name, value, checked, type } = e.target;
     setProfileForm({
       ...profileForm,
-      [e.target.name]: e.target.value
+      [name]: type === 'checkbox' ? checked : value
     });
   };
 
@@ -318,7 +323,28 @@ const ParentSettings = () => {
               onChange={handleProfileChange}
               fullWidth
               margin="normal"
-          />
+            />
+            
+            <Divider sx={{ my: 3 }} />
+            
+            <Typography variant="subtitle1" gutterBottom sx={{ mt: 2, mb: 1 }}>
+              {t('displayPreferences')}
+            </Typography>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={profileForm.showSlotOccupancy}
+                  onChange={handleProfileChange}
+                  name="showSlotOccupancy"
+                  color="primary"
+                />
+              }
+              label={t('showSlotOccupancyLabel')}
+            />
+            <Typography variant="body2" color="text.secondary" sx={{ ml: 4, mt: 0.5 }}>
+              {t('showSlotOccupancyHelp')}
+            </Typography>
+            
           <Button
             type="submit"
             variant="contained"

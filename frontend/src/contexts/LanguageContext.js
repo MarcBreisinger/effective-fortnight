@@ -38,12 +38,31 @@ export const LanguageProvider = ({ children }) => {
   }, [language, setLanguage]);
 
   const t = useCallback((key, params = {}) => {
-    let translation = translations[language][key] || key;
+    // Support nested keys like "activityLog.slotGivenUp"
+    const keys = key.split('.');
+    let translation = translations[language];
+    
+    // Navigate through nested objects
+    for (const k of keys) {
+      if (translation && typeof translation === 'object' && k in translation) {
+        translation = translation[k];
+      } else {
+        // Key not found, return the original key
+        return key;
+      }
+    }
+    
+    // If translation is not a string, return the key
+    if (typeof translation !== 'string') {
+      return key;
+    }
     
     // Replace {{param}} placeholders with actual values
-    if (params && typeof translation === 'string') {
+    if (params) {
       Object.keys(params).forEach(param => {
-        translation = translation.replace(new RegExp(`{{${param}}}`, 'g'), params[param]);
+        if (params[param] !== undefined && params[param] !== null) {
+          translation = translation.replace(new RegExp(`{{${param}}}`, 'g'), params[param]);
+        }
       });
     }
     

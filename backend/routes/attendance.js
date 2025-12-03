@@ -89,10 +89,30 @@ router.post('/child/:childId/date/:date',
 
       // Special handling for removing from waiting list
       if (status === 'remove_waiting_list') {
+        // Get child info for logging
+        const [childData] = await db.query('SELECT name, assigned_group FROM children WHERE id = ?', [childId]);
+        
         // Simply delete the status entry - child withdraws from queue
         await db.query(
           'DELETE FROM daily_attendance_status WHERE child_id = ? AND attendance_date = ?',
           [childId, date]
+        );
+        
+        // Log the removal from waiting list
+        await db.query(
+          `INSERT INTO activity_log (event_type, event_date, child_id, user_id, metadata)
+           VALUES (?, ?, ?, ?, ?)`,
+          [
+            'waiting_list_removed',
+            date,
+            childId,
+            req.user.id,
+            JSON.stringify({
+              child_name: childData[0].name,
+              group: childData[0].assigned_group,
+              parent_message: parentMessage || null
+            })
+          ]
         );
         
         console.log('[Attendance] Child removed from waiting list - status deleted');
@@ -114,6 +134,9 @@ router.post('/child/:childId/date/:date',
         });
       }
 
+      // Get child info for logging
+      const [childInfo] = await db.query('SELECT name, assigned_group FROM children WHERE id = ?', [childId]);
+      
       // Check if status already exists
       const [existing] = await db.query(
         'SELECT id FROM daily_attendance_status WHERE child_id = ? AND attendance_date = ?',
@@ -136,10 +159,40 @@ router.post('/child/:childId/date/:date',
           [childId, date, status, parentMessage, req.user.id]
         );
       }
+      
+      // Log the action to activity_log
+      let eventType = 'status_change';
+      switch (status) {
+        case 'slot_given_up':
+          eventType = 'slot_given_up';
+          break;
+        case 'waiting_list':
+          eventType = 'waiting_list_joined';
+          break;
+        case 'attending':
+          eventType = 'slot_reclaimed';
+          break;
+      }
+      
+      await db.query(
+        `INSERT INTO activity_log (event_type, event_date, child_id, user_id, metadata)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          eventType,
+          date,
+          childId,
+          req.user.id,
+          JSON.stringify({
+            child_name: childInfo[0].name,
+            group: childInfo[0].assigned_group,
+            parent_message: parentMessage || null,
+            status: status
+          })
+        ]
+      );
 
       // Get child's group for potential processing
-      const [childData] = await db.query('SELECT assigned_group FROM children WHERE id = ?', [childId]);
-      const childGroup = childData.length > 0 ? childData[0].assigned_group : null;
+      const childGroup = childInfo.length > 0 ? childInfo[0].assigned_group : null;
 
       // Get schedule for the date to know attending groups
       const [schedules] = await db.query(

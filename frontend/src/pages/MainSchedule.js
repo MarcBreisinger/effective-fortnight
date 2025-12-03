@@ -19,7 +19,9 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Drawer,
+  Tooltip
 } from '@mui/material';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -33,10 +35,12 @@ import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import PersonIcon from '@mui/icons-material/Person';
 import LanguageIcon from '@mui/icons-material/Language';
+import HistoryIcon from '@mui/icons-material/History';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { scheduleAPI } from '../services/api';
+import { scheduleAPI, activityAPI } from '../services/api';
 import AttendanceStatusCard from '../components/AttendanceStatusCard';
+import ActivityLog from '../components/ActivityLog';
 import { getChildAvatarPath } from '../utils/animalAvatars';
 
 // Helper function to get nearest weekday
@@ -62,6 +66,9 @@ function MainSchedule() {
   const [error, setError] = useState('');
   const [slotLostAlert, setSlotLostAlert] = useState(null); // Track when child loses slot
   const [lastUpdate, setLastUpdate] = useState(Date.now()); // Track when schedule was last updated
+  const [activities, setActivities] = useState([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
+  const [activityDrawerOpen, setActivityDrawerOpen] = useState(false);
   const previousDataRef = useRef(null); // Use ref to avoid triggering re-renders
   const previousAttendingGroupsRef = useRef(null); // Use ref instead of state to avoid re-renders
   const abortControllerRef = useRef(null); // Track abort controller for cancelling requests
@@ -160,6 +167,27 @@ function MainSchedule() {
     }
   }, [selectedDate, isParent, user]);
 
+  const fetchActivities = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setActivitiesLoading(true);
+    }
+    try {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      const response = await activityAPI.getByDate(dateStr);
+      setActivities(response.data.events || []);
+    } catch (err) {
+      console.error('Failed to load activity log:', err);
+      // Don't clear activities on error during background refresh
+      if (showLoading) {
+        setActivities([]);
+      }
+    } finally {
+      if (showLoading) {
+        setActivitiesLoading(false);
+      }
+    }
+  }, [selectedDate]);
+
   useEffect(() => {
     // Reset alert and tracking refs when date changes
     setSlotLostAlert(null);
@@ -167,10 +195,12 @@ function MainSchedule() {
     previousDataRef.current = null;
     
     fetchSchedule(true); // Initial load with loading spinner
+    fetchActivities(true); // Load activities for the date with loading spinner
     
     // Set up polling for automatic updates (every 10 seconds)
     const pollInterval = setInterval(() => {
       fetchSchedule(false); // Background updates without loading spinner
+      fetchActivities(false); // Update activity log without loading spinner
     }, 10000); // Increased from 5000 to 10000 to reduce request frequency
 
     // Cleanup interval and abort pending requests on unmount or when date changes
@@ -180,7 +210,7 @@ function MainSchedule() {
         abortControllerRef.current.abort();
       }
     };
-  }, [selectedDate, fetchSchedule]);
+  }, [selectedDate, fetchSchedule, fetchActivities]);
 
   const handleCapacityChange = async (event, newValue) => {
     setCapacityLimit(newValue);
@@ -188,6 +218,7 @@ function MainSchedule() {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       await scheduleAPI.updateCapacity(dateStr, newValue);
       fetchSchedule(); // Reload to get updated attending status
+      fetchActivities(false); // Refresh activity log without loading spinner
     } catch (err) {
       setError('Failed to update capacity');
       console.error(err);
@@ -235,6 +266,15 @@ function MainSchedule() {
           <Typography variant="body1" sx={{ mr: 2 }}>
             {user?.firstName} {user?.lastName} ({user?.role})
           </Typography>
+          <Tooltip title={t('activityLog.title')}>
+            <IconButton 
+              color="inherit" 
+              onClick={() => setActivityDrawerOpen(true)}
+              sx={{ mr: 1 }}
+            >
+              <HistoryIcon />
+            </IconButton>
+          </Tooltip>
           <Button
             color="inherit"
             startIcon={<LanguageIcon />}
@@ -264,12 +304,17 @@ function MainSchedule() {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
           </Alert>
         )}
+
+        <Grid container spacing={3}>
+          {/* Main Content Area */}
+          <Grid item xs={12} lg={9}>
+            <Box>
 
         {/* Date Selector */}
         <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
@@ -415,19 +460,30 @@ function MainSchedule() {
                 <Box component="ul" sx={{ pl: 2, mt: 2 }}>
                   {memoizedScheduleData.additionally_attending.map(child => (
                     <li key={child.id} style={{ marginBottom: '8px' }}>
-                      <Typography variant="body1">
-                        <strong>{child.name}</strong> (Group {child.assigned_group})
-                        {child.parent_message && (
-                          <Typography variant="body2" color="text.secondary" component="span" sx={{ ml: 1 }}>
-                            - {child.parent_message}
+                      <Box>
+                        <Typography variant="body1">
+                          <strong>{child.name}</strong> (Group {child.assigned_group})
+                          {child.parent_message && (
+                            <Typography variant="body2" color="text.secondary" component="span" sx={{ ml: 1 }}>
+                              - {child.parent_message}
+                            </Typography>
+                          )}
+                        </Typography>
+                        {(isStaff || user?.showSlotOccupancy) && child.occupied_slot_from_child_name && (
+                          <Typography 
+                            variant="caption" 
+                            color="text.secondary"
+                            sx={{ fontSize: '0.75rem', fontStyle: 'italic', display: 'block', mt: 0.5 }}
+                          >
+                            {t('usingSlotOf').replace('#', child.occupied_slot_from_child_name)}
                           </Typography>
                         )}
-                      </Typography>
-                      {child.updated_at && child.updated_by && (
-                        <Typography variant="caption" color="text.secondary">
-                          {t('addedAt')} {format(new Date(child.updated_at), 'HH:mm')} {t('by')} {child.updated_by.first_name} {child.updated_by.last_name}
-                        </Typography>
-                      )}
+                        {child.updated_at && child.updated_by && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                            {t('addedAt')} {format(new Date(child.updated_at), 'HH:mm')} {t('by')} {child.updated_by.first_name} {child.updated_by.last_name}
+                          </Typography>
+                        )}
+                      </Box>
                     </li>
                   ))}
                 </Box>
@@ -444,19 +500,30 @@ function MainSchedule() {
                 <Box component="ul" sx={{ pl: 2, mt: 2 }}>
                   {memoizedScheduleData.waiting_list.map(child => (
                     <li key={child.id} style={{ marginBottom: '8px' }}>
-                      <Typography variant="body1">
-                        <strong>{child.name}</strong> (Group {child.assigned_group})
-                        {child.parent_message && (
-                          <Typography variant="body2" color="text.secondary" component="span" sx={{ ml: 1 }}>
-                            - {child.parent_message}
+                      <Box>
+                        <Typography variant="body1">
+                          <strong>{child.name}</strong> (Group {child.assigned_group})
+                          {child.parent_message && (
+                            <Typography variant="body2" color="text.secondary" component="span" sx={{ ml: 1 }}>
+                              - {child.parent_message}
+                            </Typography>
+                          )}
+                        </Typography>
+                        {child.updated_at && child.updated_by && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                            Added at {format(new Date(child.updated_at), 'HH:mm')} by {child.updated_by.first_name} {child.updated_by.last_name}
                           </Typography>
                         )}
-                      </Typography>
-                      {child.updated_at && child.updated_by && (
-                        <Typography variant="caption" color="text.secondary">
-                          Added at {format(new Date(child.updated_at), 'HH:mm')} by {child.updated_by.first_name} {child.updated_by.last_name}
-                        </Typography>
-                      )}
+                        {(isStaff || user?.showSlotOccupancy) && child.slot_used_by_child_name && (
+                          <Typography 
+                            variant="caption" 
+                            color="primary" 
+                            sx={{ display: 'block', fontStyle: 'italic', mt: 0.5 }}
+                          >
+                            {t('slotUsedBy').replace('#', child.slot_used_by_child_name)}
+                          </Typography>
+                        )}
+                      </Box>
                     </li>
                   ))}
                 </Box>
@@ -545,16 +612,27 @@ function MainSchedule() {
                                   >
                                     <PersonIcon sx={{ fontSize: 16 }} />
                                   </Avatar>
-                                  <Typography 
-                                    variant="body2"
-                                    sx={{
-                                      textDecoration: child.attendance_status === 'slot_given_up' ? 'line-through' : 'none',
-                                      color: child.attendance_status === 'slot_given_up' ? 'text.secondary' : 'text.primary',
-                                      fontStyle: (child.attendance_status === 'waiting_list' && !isAdditionallyAttending) ? 'italic' : 'normal'
-                                    }}
-                                  >
-                                    {child.name}
-                                  </Typography>
+                                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', flex: 1 }}>
+                                    <Typography 
+                                      variant="body2"
+                                      sx={{
+                                        textDecoration: child.attendance_status === 'slot_given_up' ? 'line-through' : 'none',
+                                        color: child.attendance_status === 'slot_given_up' ? 'text.secondary' : 'text.primary',
+                                        fontStyle: (child.attendance_status === 'waiting_list' && !isAdditionallyAttending) ? 'italic' : 'normal'
+                                      }}
+                                    >
+                                      {child.name}
+                                    </Typography>
+                                    {(isStaff || user?.showSlotOccupancy) && child.occupied_slot_from_child_name && (
+                                      <Typography 
+                                        variant="caption" 
+                                        color="text.secondary"
+                                        sx={{ fontSize: '0.65rem', fontStyle: 'italic' }}
+                                      >
+                                        {t('usingSlotOf').replace('#', child.occupied_slot_from_child_name)}
+                                      </Typography>
+                                    )}
+                                  </Box>
                                   {child.attendance_status === 'slot_given_up' && (
                                     <Chip 
                                       label={t('staysHome')} 
@@ -598,7 +676,34 @@ function MainSchedule() {
         ) : (
           <Typography>No schedule data available</Typography>
         )}
+            </Box>
+          </Grid>
+        </Grid>
       </Container>
+
+      {/* Activity Log Drawer */}
+      <Drawer
+        anchor="right"
+        open={activityDrawerOpen}
+        onClose={() => setActivityDrawerOpen(false)}
+        sx={{
+          '& .MuiDrawer-paper': {
+            width: { xs: '100%', sm: 400 }
+          }
+        }}
+      >
+        <Box sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">
+              {t('activityLog.title')}
+            </Typography>
+            <IconButton onClick={() => setActivityDrawerOpen(false)} edge="end">
+              <ArrowForwardIcon />
+            </IconButton>
+          </Box>
+          <ActivityLog activities={activities} loading={activitiesLoading} />
+        </Box>
+      </Drawer>
 
       {/* Slot Lost Modal Dialog */}
       <Dialog 

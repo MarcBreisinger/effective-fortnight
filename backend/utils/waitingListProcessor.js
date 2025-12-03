@@ -75,8 +75,25 @@ async function processWaitingList(date, attendingGroups) {
         // SAFE: There's actual free capacity, no one needs to be displaced
         // Delete status record (reverts to default 'attending' behavior)
         await db.query(
-          'DELETE FROM daily_attendance_status WHERE child_id = ? AND attendance_date = ?',
-          [child.child_id, date]
+          'DELETE FROM daily_attendance_status WHERE child_id = ? AND attendance_date = ? AND status = ?',
+          [child.child_id, date, 'waiting_list']
+        );
+
+        // Log the automated restoration (use system user ID = 1 for automated actions)
+        await db.query(
+          `INSERT INTO activity_log (event_type, event_date, child_id, user_id, metadata)
+           VALUES (?, ?, ?, ?, ?)`,
+          [
+            'restored_from_waiting',
+            date,
+            child.child_id,
+            1, // System user
+            JSON.stringify({
+              child_name: child.child_name,
+              group: child.assigned_group,
+              reason: 'group_attending_again'
+            })
+          ]
         );
 
         console.log(`[WaitingListProcessor] ✓ Restored ${child.child_name} to Group ${child.assigned_group} - capacity available`);
@@ -131,15 +148,55 @@ async function processWaitingList(date, attendingGroups) {
       }
 
       if (hasCapacity) {
+        // Find if there's a child from assignedToGroup who doesn't have a slot (either waiting list or gave up slot)
+        // Priority: waiting_list first (they're actively waiting), then slot_given_up (they chose not to attend)
+        const [displacedChild] = await db.query(
+          `SELECT c.id, c.name, das.status
+           FROM children c
+           LEFT JOIN daily_attendance_status das ON c.id = das.child_id AND das.attendance_date = ?
+           WHERE c.assigned_group = ?
+           AND (das.status = 'waiting_list' OR das.status = 'slot_given_up')
+           ORDER BY 
+             CASE das.status 
+               WHEN 'waiting_list' THEN 1 
+               WHEN 'slot_given_up' THEN 2 
+               ELSE 3 
+             END,
+             das.updated_at ASC
+           LIMIT 1`,
+          [date, assignedToGroup]
+        );
+
+        const occupiedSlotFromChildId = displacedChild.length > 0 ? displacedChild[0].id : null;
+
         // Auto-assign to attending (will appear in additionally_attending list)
         await db.query(
           `UPDATE daily_attendance_status 
-           SET status = 'attending'
+           SET status = 'attending', occupied_slot_from_child_id = ?
            WHERE child_id = ? AND attendance_date = ?`,
-          [child.child_id, date]
+          [occupiedSlotFromChildId, child.child_id, date]
         );
 
-        console.log(`[WaitingListProcessor] Auto-assigned ${child.child_name} (Group ${child.assigned_group}) to additionally attending`);
+        // Log the automated assignment
+        await db.query(
+          `INSERT INTO activity_log (event_type, event_date, child_id, user_id, metadata)
+           VALUES (?, ?, ?, ?, ?)`,
+          [
+            'auto_assigned',
+            date,
+            child.child_id,
+            1, // System user
+            JSON.stringify({
+              child_name: child.child_name,
+              group: child.assigned_group,
+              assigned_to_group: assignedToGroup,
+              occupied_slot_from_child_id: occupiedSlotFromChildId,
+              occupied_slot_from_child_name: displacedChild.length > 0 ? displacedChild[0].name : null
+            })
+          ]
+        );
+
+        console.log(`[WaitingListProcessor] Auto-assigned ${child.child_name} (Group ${child.assigned_group}) to additionally attending${occupiedSlotFromChildId ? ` (using slot of child ID ${occupiedSlotFromChildId})` : ''}`);
         
         results.assignedFromWaitingList.push({
           child_id: child.child_id,
@@ -230,8 +287,8 @@ async function processSlotGiveUp(date, groupThatFreedUp, attendingGroups) {
       if (childGroupCount[0].count < GROUP_CAPACITY) {
         // Delete status (restore to regular slot)
         await db.query(
-          'DELETE FROM daily_attendance_status WHERE child_id = ? AND attendance_date = ?',
-          [child.child_id, date]
+          'DELETE FROM daily_attendance_status WHERE child_id = ? AND attendance_date = ? AND status = ?',
+          [child.child_id, date, 'waiting_list']
         );
 
         console.log(`[WaitingListProcessor] Restored ${child.child_name} to regular slot in group ${child.assigned_group}`);
@@ -248,14 +305,35 @@ async function processSlotGiveUp(date, groupThatFreedUp, attendingGroups) {
     }
 
     // Otherwise, assign to additionally attending
-    await db.query(
-      `UPDATE daily_attendance_status 
-       SET status = 'attending'
-       WHERE child_id = ? AND attendance_date = ?`,
-      [child.child_id, date]
+    // Find if there's a child from groupThatFreedUp who doesn't have a slot
+    const [displacedChild] = await db.query(
+      `SELECT c.id, c.name, das.status
+       FROM children c
+       LEFT JOIN daily_attendance_status das ON c.id = das.child_id AND das.attendance_date = ?
+       WHERE c.assigned_group = ?
+       AND c.id != ?
+       AND (das.status = 'waiting_list' OR das.status = 'slot_given_up')
+       ORDER BY 
+         CASE das.status 
+           WHEN 'waiting_list' THEN 1 
+           WHEN 'slot_given_up' THEN 2 
+           ELSE 3 
+         END,
+         das.updated_at ASC
+       LIMIT 1`,
+      [date, groupThatFreedUp, child.child_id]
     );
 
-    console.log(`[WaitingListProcessor] Assigned ${child.child_name} from waiting list to additionally attending`);
+    const occupiedSlotFromChildId = displacedChild.length > 0 ? displacedChild[0].id : null;
+
+    await db.query(
+      `UPDATE daily_attendance_status 
+       SET status = 'attending', occupied_slot_from_child_id = ?
+       WHERE child_id = ? AND attendance_date = ?`,
+      [occupiedSlotFromChildId, child.child_id, date]
+    );
+
+    console.log(`[WaitingListProcessor] Assigned ${child.child_name} from waiting list to additionally attending${occupiedSlotFromChildId ? ` (using slot of child ID ${occupiedSlotFromChildId})` : ''}`);
     
     results.assignedFromWaitingList.push({
       child_id: child.child_id,

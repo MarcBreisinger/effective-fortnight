@@ -142,7 +142,7 @@ function AttendanceStatusCard({ child, selectedDate, canAttend, isAdditionallyAt
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
             <Avatar 
-              variant="square" 
+              variant="square"
               sx={{ 
                 width: 48, 
                 height: 48, 
@@ -155,11 +155,9 @@ function AttendanceStatusCard({ child, selectedDate, canAttend, isAdditionallyAt
               <PersonIcon />
             </Avatar>
             <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-              {child.name}
+              {child.name} (Group {child.assigned_group})
             </Typography>
-          </Box>
-
-          <Alert severity={severity} sx={{ mb: 2 }}>
+          </Box>          <Alert severity={severity} sx={{ mb: 2 }}>
             <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
               {statusMessage}
             </Typography>

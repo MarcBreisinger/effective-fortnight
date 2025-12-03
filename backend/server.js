@@ -7,6 +7,7 @@ const authRoutes = require('./routes/auth');
 const childRoutes = require('./routes/children');
 const scheduleRoutes = require('./routes/schedules');
 const attendanceRoutes = require('./routes/attendance');
+const activityRoutes = require('./routes/activity');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -20,6 +21,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/children', childRoutes);
 app.use('/api/schedules', scheduleRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/activity', activityRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

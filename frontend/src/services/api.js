@@ -99,9 +99,15 @@ export const attendanceAPI = {
     axios.get(`${API_URL}/attendance/waiting-list/date/${date}`)
 };
 
+export const activityAPI = {
+  getByDate: (date) =>
+    axios.get(`${API_URL}/activity/date/${date}`)
+};
+
 export default {
   authAPI,
   childrenAPI,
   scheduleAPI,
-  attendanceAPI
+  attendanceAPI,
+  activityAPI
 };

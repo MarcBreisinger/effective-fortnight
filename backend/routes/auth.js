@@ -194,7 +194,7 @@ router.post('/login',
 router.get('/me', authenticateToken, async (req, res) => {
   try {
     const [users] = await db.query(
-      'SELECT id, email, first_name, last_name, phone, role, language FROM users WHERE id = ?',
+      'SELECT id, email, first_name, last_name, phone, role, language, show_slot_occupancy FROM users WHERE id = ?',
       [req.user.id]
     );
 
@@ -225,6 +225,7 @@ router.get('/me', authenticateToken, async (req, res) => {
       phone: user.phone,
       role: user.role,
       language: user.language || 'de',
+      showSlotOccupancy: user.show_slot_occupancy || false,
       children
     });
   } catch (error) {
@@ -241,7 +242,8 @@ router.put('/profile',
     body('lastName').notEmpty().trim(),
     body('email').isEmail().normalizeEmail(),
     body('phone').optional().trim(),
-    body('language').optional().isIn(['en', 'de'])
+    body('language').optional().isIn(['en', 'de']),
+    body('showSlotOccupancy').optional().isBoolean()
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -249,7 +251,7 @@ router.put('/profile',
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { firstName, lastName, email, phone, language } = req.body;
+    const { firstName, lastName, email, phone, language, showSlotOccupancy } = req.body;
 
     try {
       // Check if email is already used by another user
@@ -262,18 +264,30 @@ router.put('/profile',
         return res.status(400).json({ error: 'Email already in use by another account' });
       }
 
-      // Update user profile (including language if provided)
+      // Build dynamic update query based on provided fields
+      const updateFields = [];
+      const updateValues = [];
+
+      updateFields.push('first_name = ?', 'last_name = ?', 'email = ?', 'phone = ?');
+      updateValues.push(firstName, lastName, email, phone || null);
+
       if (language !== undefined) {
-        await db.query(
-          'UPDATE users SET first_name = ?, last_name = ?, email = ?, phone = ?, language = ? WHERE id = ?',
-          [firstName, lastName, email, phone || null, language, req.user.id]
-        );
-      } else {
-        await db.query(
-          'UPDATE users SET first_name = ?, last_name = ?, email = ?, phone = ? WHERE id = ?',
-          [firstName, lastName, email, phone || null, req.user.id]
-        );
+        updateFields.push('language = ?');
+        updateValues.push(language);
       }
+
+      if (showSlotOccupancy !== undefined) {
+        updateFields.push('show_slot_occupancy = ?');
+        updateValues.push(showSlotOccupancy);
+      }
+
+      updateValues.push(req.user.id);
+
+      // Update user profile
+      await db.query(
+        `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`,
+        updateValues
+      );
 
       res.json({
         message: 'Profile updated successfully',
@@ -283,7 +297,8 @@ router.put('/profile',
           lastName,
           email,
           phone,
-          language: language || req.user.language,
+          language: language !== undefined ? language : req.user.language,
+          showSlotOccupancy: showSlotOccupancy !== undefined ? showSlotOccupancy : req.user.showSlotOccupancy,
           role: req.user.role
         }
       });
