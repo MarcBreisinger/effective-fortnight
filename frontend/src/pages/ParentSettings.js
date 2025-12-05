@@ -26,9 +26,11 @@ import {
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PersonIcon from '@mui/icons-material/Person';
 import LanguageIcon from '@mui/icons-material/Language';
+import WarningIcon from '@mui/icons-material/Warning';
 import { authAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -62,6 +64,14 @@ const ParentSettings = () => {
   const [addChildDialog, setAddChildDialog] = useState({
     open: false,
     registrationCode: ''
+  });
+
+  // Remove child dialog state
+  const [removeChildDialog, setRemoveChildDialog] = useState({
+    open: false,
+    childId: null,
+    childName: '',
+    isLastChild: false
   });
 
   useEffect(() => {
@@ -246,6 +256,60 @@ const ParentSettings = () => {
     }
   };
 
+  const handleOpenRemoveChild = (child) => {
+    const isLastChild = children.length === 1;
+    setRemoveChildDialog({
+      open: true,
+      childId: child.id,
+      childName: child.name,
+      isLastChild
+    });
+  };
+
+  const handleCloseRemoveChild = () => {
+    setRemoveChildDialog({
+      open: false,
+      childId: null,
+      childName: '',
+      isLastChild: false
+    });
+    setMessage({ type: '', text: '' });
+  };
+
+  const handleRemoveChildSubmit = async () => {
+    setLoading(true);
+    setMessage({ type: '', text: '' });
+
+    try {
+      const response = await authAPI.unlinkChild(removeChildDialog.childId);
+      
+      if (response.data.accountDeleted) {
+        // Account was automatically deleted - clear token and redirect
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      } else {
+        // Update local children state
+        const updatedChildren = children.filter(child => child.id !== removeChildDialog.childId);
+        setChildren(updatedChildren);
+        
+        // Update global user state
+        setUser(prevUser => ({
+          ...prevUser,
+          children: updatedChildren
+        }));
+        
+        setMessage({ type: 'success', text: t('childRemovedSuccess') });
+        handleCloseRemoveChild();
+      }
+    } catch (error) {
+      console.error('Error removing child:', error);
+      const errorMsg = error.response?.data?.error || t('failedToRemoveChild');
+      setMessage({ type: 'error', text: errorMsg });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <>
       <AppBar position="static">
@@ -385,9 +449,14 @@ const ParentSettings = () => {
                 {index > 0 && <Divider />}
                 <ListItem
                   secondaryAction={
-                    <IconButton edge="end" onClick={() => handleEditChild(child)}>
-                      <EditIcon />
-                    </IconButton>
+                    <Box>
+                      <IconButton edge="end" onClick={() => handleEditChild(child)} sx={{ mr: 1 }}>
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton edge="end" onClick={() => handleOpenRemoveChild(child)} color="error">
+                        <DeleteIcon />
+                      </IconButton>
+                    </Box>
                   }
                 >
                   <ListItemAvatar>
@@ -475,6 +544,61 @@ const ParentSettings = () => {
           </Button>
           <Button onClick={handleAddChildSubmit} variant="contained" disabled={loading}>
             {loading ? t('linking') : t('linkChild')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Remove Child Dialog */}
+      <Dialog open={removeChildDialog.open} onClose={handleCloseRemoveChild}>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <WarningIcon color="warning" />
+            {removeChildDialog.isLastChild ? t('removeLastChildTitle') : t('removeChildTitle')}
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {removeChildDialog.isLastChild ? (
+            <>
+              <Typography variant="body1" gutterBottom>
+                {t('removeLastChildWarning').replace('#', removeChildDialog.childName)}
+              </Typography>
+              <Alert severity="warning" sx={{ mt: 2 }}>
+                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                  {t('removeLastChildConsequences')}
+                </Typography>
+                <Typography variant="body2">
+                  • {t('accountWillBeDeleted')}
+                </Typography>
+                <Typography variant="body2">
+                  • {t('willBeLoggedOut')}
+                </Typography>
+              </Alert>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                {t('childNotDeletedFromSystem')}
+              </Typography>
+            </>
+          ) : (
+            <>
+              <Typography variant="body1" gutterBottom>
+                {t('removeChildWarning').replace('#', removeChildDialog.childName)}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                {t('childNotDeletedFromSystem')}
+              </Typography>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseRemoveChild} disabled={loading}>
+            {t('cancel')}
+          </Button>
+          <Button 
+            onClick={handleRemoveChildSubmit} 
+            color="error" 
+            variant="contained" 
+            disabled={loading}
+          >
+            {loading ? t('removing') : t('removeChild')}
           </Button>
         </DialogActions>
       </Dialog>

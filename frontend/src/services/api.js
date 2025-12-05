@@ -35,6 +35,12 @@ export const authAPI = {
   linkChild: (registrationCode) =>
     axios.post(`${API_URL}/auth/link-child`, { registrationCode }),
   
+  unlinkChild: (childId) =>
+    axios.delete(`${API_URL}/auth/unlink-child/${childId}`),
+  
+  deleteAccount: () =>
+    axios.delete(`${API_URL}/auth/delete-account`),
+  
   forgotPassword: (email) =>
     axios.post(`${API_URL}/auth/forgot-password`, { email }),
   

@@ -50,7 +50,9 @@ export const translations = {
     nextDay: 'Next Day',
     yourChildrenStatus: 'Your Children\'s Status for',
     slotLostTitle: 'Attendance Slot Lost',
-    slotLostMessage: '{{childName}} from Group {{group}} has lost their attendance slot due to reduced capacity.',
+    slotLostMessage: '{{childName}} from Group {{group}} has lost their attendance slot for {{date}} due to reduced capacity.',
+    slotLostTitleMultiple: 'Attendance Slots Lost',
+    slotLostMessageMultiple: 'The following children have lost their attendance slots for {{date}} due to reduced capacity:',
     dayCareCapacity: 'Day Care Capacity:',
     totalCapacity: 'Total capacity:',
     slotsAvailable: 'Slots available:',
@@ -186,6 +188,20 @@ export const translations = {
     failedToUpdateChildName: 'Failed to update child name',
     childNameCannotBeEmpty: 'Child name cannot be empty',
     
+    // Remove Child
+    removeChild: 'Remove Child',
+    removing: 'Removing...',
+    removeChildTitle: 'Remove Child from Account?',
+    removeLastChildTitle: 'Remove Last Child from Account?',
+    removeChildWarning: 'Are you sure you want to remove # from your account?',
+    removeLastChildWarning: 'You are about to remove # from your account. This is your last child.',
+    removeLastChildConsequences: 'Important consequences:',
+    accountWillBeDeleted: 'Your account will be permanently deleted',
+    willBeLoggedOut: 'You will be logged out immediately',
+    childNotDeletedFromSystem: 'Note: The child will remain in the day care system and can be linked again with their registration code.',
+    childRemovedSuccess: 'Child removed from your account',
+    failedToRemoveChild: 'Failed to remove child from account',
+    
     // Display Preferences
     displayPreferences: 'Display Preferences',
     showSlotOccupancyLabel: 'Show whose slot is being occupied',
@@ -268,7 +284,9 @@ export const translations = {
     nextDay: 'Nächster Tag',
     yourChildrenStatus: 'Status Ihrer Kinder für',
     slotLostTitle: 'Betreuungsplatz verloren',
-    slotLostMessage: '{{childName}} aus Gruppe {{group}} hat den Betreuungsplatz aufgrund reduzierter Kapazität verloren.',
+    slotLostMessage: '{{childName}} aus Gruppe {{group}} hat den Betreuungsplatz für {{date}} aufgrund reduzierter Kapazität verloren.',
+    slotLostTitleMultiple: 'Betreuungsplätze verloren',
+    slotLostMessageMultiple: 'Die folgenden Kinder haben ihre Betreuungsplätze für {{date}} aufgrund reduzierter Kapazität verloren:',
     dayCareCapacity: 'Kita-Kapazität:',
     totalCapacity: 'Gesamtkapazität:',
     slotsAvailable: 'Verfügbare Plätze:',
@@ -403,6 +421,20 @@ export const translations = {
     childNameUpdatedSuccess: 'Kindername erfolgreich aktualisiert!',
     failedToUpdateChildName: 'Fehler beim Aktualisieren des Kindernamens',
     childNameCannotBeEmpty: 'Kindername darf nicht leer sein',
+    
+    // Remove Child
+    removeChild: 'Kind entfernen',
+    removing: 'Wird entfernt...',
+    removeChildTitle: 'Kind aus Konto entfernen?',
+    removeLastChildTitle: 'Letztes Kind aus Konto entfernen?',
+    removeChildWarning: 'Möchten Sie # wirklich aus Ihrem Konto entfernen?',
+    removeLastChildWarning: 'Sie sind dabei, # aus Ihrem Konto zu entfernen. Dies ist Ihr letztes Kind.',
+    removeLastChildConsequences: 'Wichtige Konsequenzen:',
+    accountWillBeDeleted: 'Ihr Konto wird dauerhaft gelöscht',
+    willBeLoggedOut: 'Sie werden sofort abgemeldet',
+    childNotDeletedFromSystem: 'Hinweis: Das Kind bleibt im Kita-System erhalten und kann mit seinem Registrierungscode erneut verknüpft werden.',
+    childRemovedSuccess: 'Kind aus Ihrem Konto entfernt',
+    failedToRemoveChild: 'Fehler beim Entfernen des Kindes aus dem Konto',
     
     // Display Preferences
     displayPreferences: 'Anzeigeeinstellungen',

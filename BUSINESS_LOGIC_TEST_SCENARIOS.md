@@ -706,3 +706,341 @@ After implementing automatic processing, verify these still work:
 8. ✅ Date navigation works
 9. ✅ Real-time updates via polling work
 10. ✅ Authentication and authorization enforced
+
+---
+
+## Scenario 8: Parent Child Account Management
+
+### Test 8.1: Remove Non-Last Child from Account
+**Initial State:**
+- Parent account with 2 children linked
+  - Child A1 (ID: 1) - Group A
+  - Child B1 (ID: 2) - Group B
+- Parent authenticated with valid JWT token
+
+**Action:** Parent clicks delete icon next to Child B1, confirms removal
+
+**Expected Result:**
+- ✅ Confirmation dialog appears with warning message
+- ✅ Dialog shows: "Are you sure you want to remove Child B1 from your account?"
+- ✅ Dialog clarifies: "The child will remain in the day care system and can be linked again with their registration code"
+- ✅ After confirmation:
+  - Child B1 removed from parent's account
+  - Entry deleted from `user_child_links` table
+  - Child B1 remains in `children` table (not deleted)
+  - Parent stays logged in
+  - Parent still has access to Child A1
+  - Success message: "Child removed from your account"
+
+**Verification Query:**
+```sql
+-- Verify link removed but child still exists
+SELECT * FROM user_child_links WHERE user_id = ? AND child_id = 2;
+-- Should return 0 rows
+
+SELECT * FROM children WHERE id = 2;
+-- Should return Child B1 (child still exists)
+
+SELECT * FROM user_child_links WHERE user_id = ?;
+-- Should return 1 row (only Child A1 link remains)
+```
+
+**API Verification:**
+```bash
+curl -X DELETE https://daycare.marcb.uber.space/api/auth/unlink-child/2 \
+  -H "Authorization: Bearer <jwt-token>"
+
+# Expected response:
+{
+  "message": "Child unlinked successfully",
+  "isLastChild": false
+}
+```
+
+### Test 8.2: Remove Last Child - Account Deletion
+**Initial State:**
+- Parent account with 1 child linked
+  - Child A1 (ID: 1) - Group A
+- Parent authenticated with valid JWT token
+
+**Action:** Parent clicks delete icon next to Child A1, confirms removal
+
+**Expected Result:**
+- ✅ Enhanced warning dialog appears with consequences:
+  - Title: "Remove Last Child from Account?"
+  - Warning: "You are about to remove Child A1 from your account. This is your last child."
+  - Consequences section showing:
+    - "Your account will be permanently deleted"
+    - "You will be logged out immediately"
+  - Clarification: "The child will remain in the day care system and can be linked again"
+- ✅ After confirmation:
+  - Child link removed from `user_child_links`
+  - Parent account deleted from `users` table
+  - Child A1 remains in `children` table
+  - JWT token cleared from localStorage
+  - Redirect to login page
+  - No error messages displayed
+
+**Verification Query:**
+```sql
+-- Verify both link and account deleted
+SELECT * FROM user_child_links WHERE user_id = ?;
+-- Should return 0 rows
+
+SELECT * FROM users WHERE id = ?;
+-- Should return 0 rows (parent account deleted)
+
+SELECT * FROM children WHERE id = 1;
+-- Should return Child A1 (child still exists)
+```
+
+**API Verification:**
+```bash
+# Step 1: Unlink last child
+curl -X DELETE https://daycare.marcb.uber.space/api/auth/unlink-child/1 \
+  -H "Authorization: Bearer <jwt-token>"
+
+# Expected response:
+{
+  "message": "Child unlinked successfully",
+  "isLastChild": true
+}
+
+# Step 2: Delete account
+curl -X DELETE https://daycare.marcb.uber.space/api/auth/delete-account \
+  -H "Authorization: Bearer <jwt-token>"
+
+# Expected response:
+{
+  "message": "Account deleted successfully"
+}
+```
+
+### Test 8.3: Registration Code Remains Valid After Removal
+**Initial State:**
+- Child A1 has registration_code: "ABC123XYZ"
+- Parent1 removed Child A1 from their account
+- Child A1 still exists in `children` table
+
+**Action:** Parent2 (different account) enters registration code "ABC123XYZ"
+
+**Expected Result:**
+- ✅ Registration code validates successfully
+- ✅ Child A1 linked to Parent2's account
+- ✅ New entry created in `user_child_links`
+- ✅ Child A1 appears in Parent2's children list
+- ✅ No conflict with previous parent removal
+
+**Verification Query:**
+```sql
+-- Verify new link created
+SELECT * FROM user_child_links WHERE child_id = 1 AND user_id = ?;
+-- Should return 1 row (new parent link)
+
+-- Verify child unchanged
+SELECT registration_code FROM children WHERE id = 1;
+-- Should return "ABC123XYZ" (unchanged)
+```
+
+### Test 8.4: Multiple Parents Can Link Same Child
+**Initial State:**
+- Child A1 has registration_code: "ABC123XYZ"
+- Parent1 already linked to Child A1
+
+**Action:** Parent2 enters same registration code "ABC123XYZ"
+
+**Expected Result:**
+- ✅ Both parents linked to same child (many-to-many relationship)
+- ✅ Child A1 appears in both Parent1 and Parent2 accounts
+- ✅ Two entries in `user_child_links` table for child_id = 1
+- ✅ If Parent1 removes child, Parent2 keeps their link
+- ✅ If Parent2 removes child and it's their last child, only Parent2's account is deleted
+
+**Verification Query:**
+```sql
+-- Verify multiple parent links
+SELECT user_id, child_id FROM user_child_links WHERE child_id = 1;
+-- Should return 2 rows (both parents linked)
+```
+
+### Test 8.5: Authorization Checks for Child Removal
+**Initial State:**
+- Parent1 linked to Child A1
+- Parent2 linked to Child B1
+- Parent1 authenticated with JWT token
+
+**Action:** Parent1 attempts to remove Child B1 (not their child)
+
+**Expected Result:**
+- ✅ API returns 403 Forbidden error
+- ✅ Error message: "You do not have permission to unlink this child"
+- ✅ No changes to database
+- ✅ Child B1 remains linked to Parent2
+
+**API Verification:**
+```bash
+curl -X DELETE https://daycare.marcb.uber.space/api/auth/unlink-child/2 \
+  -H "Authorization: Bearer <parent1-jwt-token>"
+
+# Expected response (403):
+{
+  "error": "You do not have permission to unlink this child"
+}
+```
+
+### Test 8.6: Staff Cannot Delete Their Own Account via This Endpoint
+**Initial State:**
+- Staff account authenticated
+- Staff user has role = 'staff'
+
+**Action:** Staff attempts to call DELETE /auth/delete-account
+
+**Expected Result:**
+- ✅ API returns 403 Forbidden error
+- ✅ Error message: "Only parent accounts can be deleted"
+- ✅ Staff account unchanged
+- ✅ Endpoint restricted to parent role only
+
+**API Verification:**
+```bash
+curl -X DELETE https://daycare.marcb.uber.space/api/auth/delete-account \
+  -H "Authorization: Bearer <staff-jwt-token>"
+
+# Expected response (403):
+{
+  "error": "Only parent accounts can be deleted"
+}
+```
+
+### Test 8.7: Dialog Cancel - No Changes
+**Initial State:**
+- Parent has 1 child (Child A1)
+- Parent clicks delete icon
+
+**Action:** Parent clicks "Cancel" in confirmation dialog
+
+**Expected Result:**
+- ✅ Dialog closes
+- ✅ No API calls made
+- ✅ No database changes
+- ✅ Child remains linked to parent
+- ✅ Parent stays logged in
+- ✅ No error or success messages
+
+### Test 8.8: Network Error Handling
+**Initial State:**
+- Parent has 2 children
+- Network connection interrupted
+
+**Action:** Parent attempts to remove child, API call fails
+
+**Expected Result:**
+- ✅ Error message displayed: "Failed to remove child from account"
+- ✅ Dialog remains open
+- ✅ Parent can retry
+- ✅ No partial state changes
+- ✅ Database unchanged
+
+### Test 8.9: Translation Support
+**Initial State:**
+- Parent viewing settings in German (language: 'de')
+
+**Action:** Parent opens remove child dialog
+
+**Expected Result:**
+- ✅ All dialog text in German:
+  - Title: "Kind aus Konto entfernen?"
+  - Warning: "Möchten Sie # wirklich aus Ihrem Konto entfernen?"
+  - Consequences: "Wichtige Konsequenzen:"
+  - Account deletion: "Ihr Konto wird dauerhaft gelöscht"
+  - Logout: "Sie werden sofort abgemeldet"
+  - Note: "Hinweis: Das Kind bleibt im Kita-System erhalten..."
+- ✅ Buttons translated: "Abbrechen", "Kind entfernen"
+
+### Test 8.10: UI State Updates After Removal
+**Initial State:**
+- Parent has 3 children: A1, B1, C1
+- Parent viewing ParentSettings page
+
+**Action:** Parent removes Child B1 (middle child)
+
+**Expected Result:**
+- ✅ Dialog closes after successful removal
+- ✅ Children list immediately updates
+- ✅ Only A1 and C1 visible in list
+- ✅ Success message displayed
+- ✅ No page reload required
+- ✅ User context updated (global state)
+- ✅ Other pages immediately reflect change
+
+**Frontend Verification:**
+```javascript
+// Before removal
+user.children.length === 3
+
+// After removal
+user.children.length === 2
+user.children.find(c => c.id === 2) === undefined
+```
+
+### Test 8.11: Concurrent Parent Removal
+**Initial State:**
+- Child A1 linked to Parent1 and Parent2
+- Both parents viewing settings simultaneously
+
+**Action:** Both parents click remove child at same time
+
+**Expected Result:**
+- ✅ First request succeeds - removes Parent1's link
+- ✅ Second request succeeds - removes Parent2's link
+- ✅ Child A1 remains in system with no parent links
+- ✅ Both parents receive success messages
+- ✅ No database integrity errors
+- ✅ Child can be linked again with registration code
+
+**Verification Query:**
+```sql
+-- After both removals
+SELECT * FROM user_child_links WHERE child_id = 1;
+-- Should return 0 rows
+
+SELECT * FROM children WHERE id = 1;
+-- Should return 1 row (child still exists)
+```
+
+---
+
+## Child Account Management - Edge Cases
+
+### Edge Case 9.1: Remove Child Who Is Currently Attending
+**Scenario:** Parent removes child who is currently in "additionally attending" status for today.
+
+**Expected:** 
+- Link removed from account
+- Attendance status for today remains unchanged in `daily_attendance_status`
+- Other parents can still see child in schedule if they share the child
+
+### Edge Case 9.2: Remove Child with Future Attendance Records
+**Scenario:** Parent removes child who has waiting list entries for future dates.
+
+**Expected:**
+- Link removed from account
+- Future attendance records remain in system
+- If child is re-linked to another parent, those records are still valid
+
+### Edge Case 9.3: Delete Account During Active Session
+**Scenario:** Parent has multiple browser tabs open, deletes account in one tab.
+
+**Expected:**
+- Account deleted, JWT invalidated
+- Other tabs show "Unauthorized" on next API call
+- Clean error handling, redirect to login
+
+### Edge Case 9.4: Remove Last Child - Account Has Other Data
+**Scenario:** Parent has profile preferences, language settings, and activity log entries.
+
+**Expected:**
+- Account fully deleted (cascade delete or explicit cleanup)
+- User preferences removed
+- Activity log entries either deleted or anonymized
+- No orphaned data in database

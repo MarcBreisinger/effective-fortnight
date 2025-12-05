@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useCallback } from 'react';
 import { translations } from '../i18n/translations';
+import { authAPI } from '../services/api';
 
 const LanguageContext = createContext();
 
@@ -18,9 +19,20 @@ export const LanguageProvider = ({ children }) => {
     return saved || 'de';
   });
 
-  const setLanguage = useCallback((lang) => {
+  const setLanguage = useCallback(async (lang) => {
     setLanguageState(lang);
     localStorage.setItem('language', lang);
+    
+    // Save to backend if user is logged in
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        await authAPI.updateProfile({ language: lang });
+      } catch (error) {
+        console.error('Failed to save language preference:', error);
+        // Don't fail silently, but the UI change still happens via localStorage
+      }
+    }
   }, []);
 
   // Listen for language changes from AuthContext (when user logs in)
@@ -32,9 +44,9 @@ export const LanguageProvider = ({ children }) => {
     return () => window.removeEventListener('languageChanged', handleLanguageChanged);
   }, []);
 
-  const toggleLanguage = useCallback(() => {
+  const toggleLanguage = useCallback(async () => {
     const newLang = language === 'en' ? 'de' : 'en';
-    setLanguage(newLang);
+    await setLanguage(newLang);
   }, [language, setLanguage]);
 
   const t = useCallback((key, params = {}) => {

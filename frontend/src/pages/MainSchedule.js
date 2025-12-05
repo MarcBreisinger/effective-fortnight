@@ -64,7 +64,7 @@ function MainSchedule() {
   const [capacityLimit, setCapacityLimit] = useState(4);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [slotLostAlert, setSlotLostAlert] = useState(null); // Track when child loses slot
+  const [slotLostAlert, setSlotLostAlert] = useState(null); // Track when children lose slots with date
   const [lastUpdate, setLastUpdate] = useState(Date.now()); // Track when schedule was last updated
   const [activities, setActivities] = useState([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
@@ -121,18 +121,27 @@ function MainSchedule() {
             .map(g => g.group);
           
           // Check if any of the parent's children lost their slot
+          const childrenWhoLostSlots = [];
           user.children.forEach(child => {
             const wasAttending = previousAttendingGroupsRef.current.includes(child.assigned_group);
             const isAttending = newAttendingGroups.includes(child.assigned_group);
             
             if (wasAttending && !isAttending) {
               // Child lost their slot!
-              setSlotLostAlert({
+              childrenWhoLostSlots.push({
                 childName: child.name,
                 group: child.assigned_group
               });
             }
           });
+          
+          // If any children lost slots, show the alert with date information
+          if (childrenWhoLostSlots.length > 0) {
+            setSlotLostAlert({
+              children: childrenWhoLostSlots,
+              date: selectedDate
+            });
+          }
           
           previousAttendingGroupsRef.current = newAttendingGroups;
         } else if (isParent && user?.children && (isInitialLoad || previousAttendingGroupsRef.current === null)) {
@@ -713,17 +722,35 @@ function MainSchedule() {
         fullWidth
       >
         <DialogTitle sx={{ bgcolor: '#ff9800', color: 'white' }}>
-          {t('slotLostTitle')}
+          {slotLostAlert?.children.length === 1 ? t('slotLostTitle') : t('slotLostTitleMultiple')}
         </DialogTitle>
         <DialogContent sx={{ mt: 2 }}>
-          {slotLostAlert && (
+          {slotLostAlert && slotLostAlert.children.length === 1 ? (
             <Typography variant="body1">
               {t('slotLostMessage', { 
-                childName: slotLostAlert.childName, 
-                group: slotLostAlert.group 
+                childName: slotLostAlert.children[0].childName, 
+                group: slotLostAlert.children[0].group,
+                date: format(slotLostAlert.date, 'EEEE, dd.MM.yyyy', { locale: language === 'de' ? de : undefined })
               })}
             </Typography>
-          )}
+          ) : slotLostAlert && slotLostAlert.children.length > 1 ? (
+            <Box>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                {t('slotLostMessageMultiple', {
+                  date: format(slotLostAlert.date, 'EEEE, dd.MM.yyyy', { locale: language === 'de' ? de : undefined })
+                })}
+              </Typography>
+              <Box component="ul" sx={{ pl: 2 }}>
+                {slotLostAlert.children.map((alert, index) => (
+                  <li key={index}>
+                    <Typography variant="body1">
+                      <strong>{alert.childName}</strong> ({t('group')} {alert.group})
+                    </Typography>
+                  </li>
+                ))}
+              </Box>
+            </Box>
+          ) : null}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSlotLostAlert(null)} color="primary" variant="contained">

@@ -78,6 +78,21 @@ fi
 
 echo "Backend configured."
 
+# Ensure supervisor config has NODE_ENV=production
+echo "Ensuring supervisor configuration is correct..."
+cat > ~/etc/services.d/daycare-backend.ini << 'EOF'
+[program:daycare-backend]
+directory=%(ENV_HOME)s/daycare-app/backend
+command=node server.js
+environment=NODE_ENV=production
+autorestart=true
+startsecs=30
+EOF
+
+# Reload supervisor configuration
+supervisorctl reread
+supervisorctl update
+
 # Configure web backend to route subdomain to Node.js
 echo "Configuring web backend for subdomain..."
 uberspace web backend set daycare.marcb.uber.space --http --port 5000

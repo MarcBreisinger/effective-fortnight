@@ -238,9 +238,9 @@ router.get('/me', authenticateToken, async (req, res) => {
 router.put('/profile', 
   authenticateToken,
   [
-    body('firstName').notEmpty().trim(),
-    body('lastName').notEmpty().trim(),
-    body('email').isEmail().normalizeEmail(),
+    body('firstName').optional().notEmpty().trim(),
+    body('lastName').optional().notEmpty().trim(),
+    body('email').optional().isEmail().normalizeEmail(),
     body('phone').optional().trim(),
     body('language').optional().isIn(['en', 'de']),
     body('showSlotOccupancy').optional().isBoolean()
@@ -254,22 +254,38 @@ router.put('/profile',
     const { firstName, lastName, email, phone, language, showSlotOccupancy } = req.body;
 
     try {
-      // Check if email is already used by another user
-      const [existingUsers] = await db.query(
-        'SELECT id FROM users WHERE email = ? AND id != ?',
-        [email, req.user.id]
-      );
-
-      if (existingUsers.length > 0) {
-        return res.status(400).json({ error: 'Email already in use by another account' });
-      }
-
       // Build dynamic update query based on provided fields
       const updateFields = [];
       const updateValues = [];
 
-      updateFields.push('first_name = ?', 'last_name = ?', 'email = ?', 'phone = ?');
-      updateValues.push(firstName, lastName, email, phone || null);
+      // Check if email is being updated and if it's already used by another user
+      if (email !== undefined) {
+        const [existingUsers] = await db.query(
+          'SELECT id FROM users WHERE email = ? AND id != ?',
+          [email, req.user.id]
+        );
+
+        if (existingUsers.length > 0) {
+          return res.status(400).json({ error: 'Email already in use by another account' });
+        }
+        updateFields.push('email = ?');
+        updateValues.push(email);
+      }
+
+      if (firstName !== undefined) {
+        updateFields.push('first_name = ?');
+        updateValues.push(firstName);
+      }
+
+      if (lastName !== undefined) {
+        updateFields.push('last_name = ?');
+        updateValues.push(lastName);
+      }
+
+      if (phone !== undefined) {
+        updateFields.push('phone = ?');
+        updateValues.push(phone || null);
+      }
 
       if (language !== undefined) {
         updateFields.push('language = ?');
@@ -281,6 +297,11 @@ router.put('/profile',
         updateValues.push(showSlotOccupancy);
       }
 
+      // If no fields to update, return error
+      if (updateFields.length === 0) {
+        return res.status(400).json({ error: 'No fields to update' });
+      }
+
       updateValues.push(req.user.id);
 
       // Update user profile
@@ -289,17 +310,25 @@ router.put('/profile',
         updateValues
       );
 
+      // Fetch updated user data
+      const [updatedUsers] = await db.query(
+        'SELECT id, email, first_name, last_name, phone, role, language, show_slot_occupancy FROM users WHERE id = ?',
+        [req.user.id]
+      );
+
+      const updatedUser = updatedUsers[0];
+
       res.json({
         message: 'Profile updated successfully',
         user: {
-          id: req.user.id,
-          firstName,
-          lastName,
-          email,
-          phone,
-          language: language !== undefined ? language : req.user.language,
-          showSlotOccupancy: showSlotOccupancy !== undefined ? showSlotOccupancy : req.user.showSlotOccupancy,
-          role: req.user.role
+          id: updatedUser.id,
+          firstName: updatedUser.first_name,
+          lastName: updatedUser.last_name,
+          email: updatedUser.email,
+          phone: updatedUser.phone,
+          language: updatedUser.language || 'de',
+          showSlotOccupancy: updatedUser.show_slot_occupancy || false,
+          role: updatedUser.role
         }
       });
     } catch (error) {
@@ -426,6 +455,108 @@ router.post('/link-child',
     } catch (error) {
       console.error('Link child error:', error);
       res.status(500).json({ error: 'Failed to link child' });
+    }
+  }
+);
+
+// Remove child from parent account
+router.delete('/unlink-child/:childId',
+  authenticateToken,
+  async (req, res) => {
+    const { childId } = req.params;
+
+    try {
+      // Only parents can unlink children
+      if (req.user.role !== 'parent') {
+        return res.status(403).json({ error: 'Only parents can unlink children' });
+      }
+
+      // Verify the link exists
+      const [links] = await db.query(
+        'SELECT id FROM user_child_links WHERE user_id = ? AND child_id = ?',
+        [req.user.id, childId]
+      );
+
+      if (links.length === 0) {
+        return res.status(404).json({ error: 'Child link not found' });
+      }
+
+      // Check if this is the last child BEFORE removing
+      const [allLinks] = await db.query(
+        'SELECT id FROM user_child_links WHERE user_id = ?',
+        [req.user.id]
+      );
+      const isLastChild = allLinks.length === 1;
+
+      // Remove the link
+      await db.query(
+        'DELETE FROM user_child_links WHERE user_id = ? AND child_id = ?',
+        [req.user.id, childId]
+      );
+
+      // If this was the last child, delete the account automatically
+      if (isLastChild) {
+        // Delete password reset tokens (if any)
+        await db.query(
+          'DELETE FROM password_reset_tokens WHERE user_id = ?',
+          [req.user.id]
+        );
+
+        // Delete the user account
+        // - user_child_links will CASCADE DELETE automatically
+        // - daily_attendance_status.updated_by_user will SET NULL automatically
+        await db.query(
+          'DELETE FROM users WHERE id = ?',
+          [req.user.id]
+        );
+
+        return res.json({
+          message: 'Child unlinked and account deleted successfully',
+          isLastChild: true,
+          accountDeleted: true
+        });
+      }
+
+      res.json({
+        message: 'Child unlinked successfully',
+        isLastChild: false,
+        accountDeleted: false
+      });
+    } catch (error) {
+      console.error('Unlink child error:', error);
+      res.status(500).json({ error: 'Failed to unlink child' });
+    }
+  }
+);
+
+// Delete own account (parents only)
+router.delete('/delete-account',
+  authenticateToken,
+  async (req, res) => {
+    try {
+      // Only parents can delete their own accounts
+      if (req.user.role !== 'parent') {
+        return res.status(403).json({ error: 'Only parents can delete their own accounts' });
+      }
+
+      // Delete all child links first
+      await db.query(
+        'DELETE FROM user_child_links WHERE user_id = ?',
+        [req.user.id]
+      );
+
+      // Delete the user account
+      await db.query(
+        'DELETE FROM users WHERE id = ?',
+        [req.user.id]
+      );
+
+      res.json({
+        message: 'Account deleted successfully'
+      });
+    } catch (error) {
+      console.error('Delete account error:', error);
+      res.status(500).json({ error: 'Failed to delete account' });
     }
   }
 );
