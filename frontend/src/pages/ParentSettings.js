@@ -30,6 +30,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PersonIcon from '@mui/icons-material/Person';
 import LanguageIcon from '@mui/icons-material/Language';
+import LogoutIcon from '@mui/icons-material/Logout';
 import WarningIcon from '@mui/icons-material/Warning';
 import { authAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -38,7 +39,7 @@ import { getChildAvatarPath } from '../utils/animalAvatars';
 
 const ParentSettings = () => {
   const navigate = useNavigate();
-  const { user, setUser } = useAuth();
+  const { user, setUser, logout } = useAuth();
   const { t, language, toggleLanguage } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -310,6 +311,11 @@ const ParentSettings = () => {
     }
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   return (
     <>
       <AppBar position="static">
@@ -326,16 +332,6 @@ const ParentSettings = () => {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             {t('settings')}
           </Typography>
-          <Typography variant="body1" sx={{ mr: 2 }}>
-            {user?.firstName} {user?.lastName}
-          </Typography>
-          <Button
-            color="inherit"
-            startIcon={<LanguageIcon />}
-            onClick={toggleLanguage}
-          >
-            {language === 'en' ? 'DE' : 'EN'}
-          </Button>
         </Toolbar>
       </AppBar>
 
@@ -409,12 +405,26 @@ const ParentSettings = () => {
               {t('showSlotOccupancyHelp')}
             </Typography>
             
+            <Divider sx={{ my: 3 }} />
+            
+            <Typography variant="subtitle1" gutterBottom sx={{ mt: 2, mb: 1 }}>
+              {t('language')}
+            </Typography>
+            <Button
+              variant="outlined"
+              startIcon={<LanguageIcon />}
+              onClick={toggleLanguage}
+              fullWidth
+            >
+              {language === 'en' ? t('switchToGerman') : t('switchToEnglish')}
+            </Button>
+            
           <Button
             type="submit"
             variant="contained"
             color="primary"
             disabled={loading}
-            sx={{ mt: 2 }}
+            sx={{ mt: 3 }}
           >
             {loading ? t('saving') : t('saveProfile')}
           </Button>
@@ -482,6 +492,19 @@ const ParentSettings = () => {
             {t('noChildrenLinked')}
           </Typography>
         )}
+      </Paper>
+
+      {/* Logout */}
+      <Paper elevation={3} sx={{ p: 3, mt: 3 }}>
+        <Button
+          variant="outlined"
+          color="error"
+          startIcon={<LogoutIcon />}
+          onClick={handleLogout}
+          fullWidth
+        >
+          {t('logout')}
+        </Button>
       </Paper>
 
       {/* Edit Child Name Dialog */}

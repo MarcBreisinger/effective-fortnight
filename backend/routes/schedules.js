@@ -3,6 +3,7 @@ const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticateToken, requireStaff } = require('../middleware/auth');
 const { processWaitingList } = require('../utils/waitingListProcessor');
+const { rejectPastDates } = require('../utils/dateValidation');
 
 const router = express.Router();
 
@@ -78,6 +79,7 @@ router.get('/range', authenticateToken, async (req, res) => {
 router.post('/date/:date',
   authenticateToken,
   requireStaff,
+  rejectPastDates,
   [
     body('groupOrder').isArray({ min: 4, max: 4 }),
     body('capacityLimit').isInt({ min: 0, max: 4 })
@@ -407,9 +409,11 @@ router.get('/date/:date/children', authenticateToken, async (req, res) => {
     const [children] = await db.query(
       `SELECT c.id, c.name, c.assigned_group, 
               das.status as attendance_status,
+              das.urgency_level,
               das.parent_message,
               das.updated_at,
               das.occupied_slot_from_child_id,
+              das.occupied_slot_from_group,
               u.first_name, u.last_name,
               occupied_child.name as occupied_slot_from_child_name,
               occupier_child.id as slot_used_by_child_id,
@@ -424,16 +428,22 @@ router.get('/date/:date/children', authenticateToken, async (req, res) => {
       [date, date]
     );
 
-    const GROUP_CAPACITY = 12; // Each group can hold 12 children
-
-    // Get waiting list children sorted by when they joined (earliest first)
+    // Get waiting list children sorted by urgency (urgent first) then by timestamp (FIFO)
     const waitingListChildren = children
       .filter(c => c.attendance_status === 'waiting_list')
-      .sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at))
+      .sort((a, b) => {
+        // Sort by urgency level first (urgent > flexible)
+        const urgencyOrder = { urgent: 2, flexible: 1 };
+        const urgencyDiff = (urgencyOrder[b.urgency_level] || 1) - (urgencyOrder[a.urgency_level] || 1);
+        if (urgencyDiff !== 0) return urgencyDiff;
+        // Then by timestamp (FIFO)
+        return new Date(a.updated_at) - new Date(b.updated_at);
+      })
       .map(c => ({
         id: c.id,
         name: c.name,
         assigned_group: c.assigned_group,
+        urgency_level: c.urgency_level,
         parent_message: c.parent_message,
         updated_at: c.updated_at,
         updated_by: c.first_name && c.last_name ? {
@@ -442,6 +452,7 @@ router.get('/date/:date/children', authenticateToken, async (req, res) => {
         } : null,
         occupied_slot_from_child_id: c.occupied_slot_from_child_id,
         occupied_slot_from_child_name: c.occupied_slot_from_child_name,
+        occupied_slot_from_group: c.occupied_slot_from_group,
         slot_used_by_child_id: c.slot_used_by_child_id,
         slot_used_by_child_name: c.slot_used_by_child_name
       }));
@@ -461,7 +472,8 @@ router.get('/date/:date/children', authenticateToken, async (req, res) => {
             last_name: c.last_name
           } : null,
           occupied_slot_from_child_id: c.occupied_slot_from_child_id,
-          occupied_slot_from_child_name: c.occupied_slot_from_child_name
+          occupied_slot_from_child_name: c.occupied_slot_from_child_name,
+          occupied_slot_from_group: c.occupied_slot_from_group
         }));
 
       // Calculate attending count (excluding those who gave up slots or are on waiting list)
@@ -471,13 +483,16 @@ router.get('/date/:date/children', authenticateToken, async (req, res) => {
       ).length;
 
       const canAttend = attendingGroups.includes(group);
+      
+      // Group capacity is the total number of children assigned to this group
+      const groupCapacity = groupChildren.length;
 
       return {
         group,
         canAttend,
-        capacity: GROUP_CAPACITY,
+        capacity: groupCapacity,
         attending: attendingCount,
-        available: canAttend ? Math.max(0, GROUP_CAPACITY - attendingCount) : 0,
+        available: canAttend ? Math.max(0, groupCapacity - attendingCount) : 0,
         children: groupChildren
       };
     });
@@ -525,7 +540,8 @@ router.get('/date/:date/children', authenticateToken, async (req, res) => {
               last_name: child.last_name
             } : null,
             occupied_slot_from_child_id: child.occupied_slot_from_child_id,
-            occupied_slot_from_child_name: child.occupied_slot_from_child_name
+            occupied_slot_from_child_name: child.occupied_slot_from_child_name,
+            occupied_slot_from_group: child.occupied_slot_from_group
           });
           
           // Consume one slot from available capacity

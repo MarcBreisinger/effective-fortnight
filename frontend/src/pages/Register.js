@@ -106,7 +106,6 @@ function Register() {
               value={formData.registrationCode}
               onChange={handleChange}
               required
-              helperText={t('enterRegistrationCode')}
             />
             <TextField
               label={t('firstName')}

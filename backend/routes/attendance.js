@@ -3,6 +3,7 @@ const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticateToken, requireParent } = require('../middleware/auth');
 const { processSlotGiveUp } = require('../utils/waitingListProcessor');
+const { rejectPastDates } = require('../utils/dateValidation');
 
 const router = express.Router();
 
@@ -60,12 +61,14 @@ router.get('/child/:childId/date/:date', authenticateToken, async (req, res) => 
 });
 
 // Update attendance status (give up slot or join waiting list)
+// Both parents and staff can modify attendance
 router.post('/child/:childId/date/:date',
   authenticateToken,
-  requireParent,
+  rejectPastDates,
   [
     body('status').isIn(['attending', 'slot_given_up', 'waiting_list', 'remove_waiting_list']),
-    body('parentMessage').optional().isString()
+    body('parentMessage').optional().isString(),
+    body('urgencyLevel').optional().isIn(['urgent', 'flexible'])
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -74,17 +77,20 @@ router.post('/child/:childId/date/:date',
     }
 
     const { childId, date } = req.params;
-    const { status, parentMessage } = req.body;
+    const { status, parentMessage, urgencyLevel } = req.body;
+    const finalUrgencyLevel = urgencyLevel || 'urgent'; // Default to urgent if not specified
     let finalStatus = status; // Track the final status after auto-assignment
 
     try {
-      // Verify user has access to this child
-      const [links] = await db.query(
-        'SELECT id FROM user_child_links WHERE user_id = ? AND child_id = ?',
-        [req.user.id, childId]
-      );
-      if (links.length === 0) {
-        return res.status(403).json({ error: 'Access denied to this child' });
+      // Verify user has access to this child (parents only - staff has access to all)
+      if (req.user.role === 'parent') {
+        const [links] = await db.query(
+          'SELECT id FROM user_child_links WHERE user_id = ? AND child_id = ?',
+          [req.user.id, childId]
+        );
+        if (links.length === 0) {
+          return res.status(403).json({ error: 'Access denied to this child' });
+        }
       }
 
       // Special handling for removing from waiting list
@@ -144,19 +150,21 @@ router.post('/child/:childId/date/:date',
       );
 
       if (existing.length > 0) {
-        // Update existing
+        // Update existing - DO NOT clear slot occupancy info here when giving up slot
+        // We need to keep this info so processSlotGiveUp can read it to trace the slot chain
+        // The occupancy info will be cleared AFTER processSlotGiveUp completes (see below)
         await db.query(
           `UPDATE daily_attendance_status 
-           SET status = ?, parent_message = ?, updated_by_user = ?, updated_at = CURRENT_TIMESTAMP
+           SET status = ?, parent_message = ?, updated_by_user = ?, urgency_level = ?, updated_at = CURRENT_TIMESTAMP
            WHERE child_id = ? AND attendance_date = ?`,
-          [status, parentMessage, req.user.id, childId, date]
+          [status, parentMessage, req.user.id, finalUrgencyLevel, childId, date]
         );
       } else {
         // Create new
         await db.query(
-          `INSERT INTO daily_attendance_status (child_id, attendance_date, status, parent_message, updated_by_user)
-           VALUES (?, ?, ?, ?, ?)`,
-          [childId, date, status, parentMessage, req.user.id]
+          `INSERT INTO daily_attendance_status (child_id, attendance_date, status, parent_message, updated_by_user, urgency_level)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [childId, date, status, parentMessage, req.user.id, finalUrgencyLevel]
         );
       }
       
@@ -186,7 +194,8 @@ router.post('/child/:childId/date/:date',
             child_name: childInfo[0].name,
             group: childInfo[0].assigned_group,
             parent_message: parentMessage || null,
-            status: status
+            status: status,
+            urgency_level: status === 'waiting_list' ? finalUrgencyLevel : null
           })
         ]
       );
@@ -205,8 +214,18 @@ router.post('/child/:childId/date/:date',
       if (status === 'slot_given_up' && childGroup) {
         console.log('[Attendance] Slot given up by child in group', childGroup, '- processing waiting list');
         try {
-          const processingResults = await processSlotGiveUp(date, childGroup, attendingGroups);
+          const processingResults = await processSlotGiveUp(date, childGroup, attendingGroups, childId);
           console.log('[Attendance] Waiting list processing results:', processingResults);
+          
+          // Now clear the occupancy info for the child who gave up the slot
+          // (AFTER processSlotGiveUp has read it and assigned the next person)
+          await db.query(
+            `UPDATE daily_attendance_status 
+             SET occupied_slot_from_child_id = NULL, occupied_slot_from_group = NULL
+             WHERE child_id = ? AND attendance_date = ? AND status = 'slot_given_up'`,
+            [childId, date]
+          );
+          console.log('[Attendance] Cleared slot occupancy info for child who gave up slot');
         } catch (processingError) {
           console.error('[Attendance] Error processing slot give-up:', processingError);
           // Don't fail the request if processing fails
@@ -308,7 +327,7 @@ router.get('/waiting-list/date/:date', authenticateToken, async (req, res) => {
        JOIN children c ON das.child_id = c.id
        JOIN users u ON das.updated_by_user = u.id
        WHERE das.attendance_date = ? AND das.status = 'waiting_list'
-       ORDER BY das.updated_at ASC`,
+       ORDER BY das.urgency_level DESC, das.updated_at ASC`,
       [date]
     );
 
@@ -318,6 +337,7 @@ router.get('/waiting-list/date/:date', authenticateToken, async (req, res) => {
       child_name: w.child_name,
       assigned_group: w.assigned_group,
       parent_message: w.parent_message,
+      urgency_level: w.urgency_level,
       updated_by: {
         first_name: w.first_name,
         last_name: w.last_name

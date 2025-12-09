@@ -13,6 +13,7 @@ import MainSchedule from './pages/MainSchedule';
 import StaffDashboard from './pages/StaffDashboard';
 import RotationEditor from './pages/RotationEditor';
 import ParentSettings from './pages/ParentSettings';
+import StaffSettings from './pages/StaffSettings';
 
 const theme = createTheme({
   palette: {
@@ -86,6 +87,14 @@ function App() {
                 element={
                   <StaffRoute>
                     <RotationEditor />
+                  </StaffRoute>
+                } 
+              />
+              <Route 
+                path="/staff/settings" 
+                element={
+                  <StaffRoute>
+                    <StaffSettings />
                   </StaffRoute>
                 } 
               />

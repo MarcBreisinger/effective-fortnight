@@ -35,6 +35,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import PersonIcon from '@mui/icons-material/Person';
 import LanguageIcon from '@mui/icons-material/Language';
+import WarningIcon from '@mui/icons-material/Warning';
 import { childrenAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -54,6 +55,13 @@ function StaffDashboard() {
   const [formData, setFormData] = useState({
     name: '',
     assignedGroup: 'A'
+  });
+  const [deleteDialog, setDeleteDialog] = useState({
+    open: false,
+    childId: null,
+    childName: '',
+    affectedParents: [],
+    loading: false
   });
 
   useEffect(() => {
@@ -148,16 +156,46 @@ function StaffDashboard() {
     }
   };
 
-  const handleDelete = async (id, name) => {
-    if (window.confirm(t('confirmDeleteChild'))) {
-      try {
-        await childrenAPI.delete(id);
-        setSuccess(t('childDeletedSuccess'));
-        fetchChildren();
-      } catch (err) {
-        setError(t('failedToUpdateProfile'));
-      }
+  const handleDeleteClick = async (id, name) => {
+    setDeleteDialog(prev => ({ ...prev, loading: true, open: true, childId: id, childName: name }));
+    
+    try {
+      const response = await childrenAPI.checkDeletionImpact(id);
+      setDeleteDialog({
+        open: true,
+        childId: id,
+        childName: name,
+        affectedParents: response.data.affectedParents || [],
+        loading: false
+      });
+    } catch (err) {
+      setError('Failed to check deletion impact');
+      setDeleteDialog({ open: false, childId: null, childName: '', affectedParents: [], loading: false });
     }
+  };
+
+  const handleDeleteConfirm = async () => {
+    setDeleteDialog(prev => ({ ...prev, loading: true }));
+    
+    try {
+      const response = await childrenAPI.delete(deleteDialog.childId);
+      
+      let successMsg = t('childDeletedSuccess');
+      if (response.data.deletedParentAccounts > 0) {
+        successMsg += ` ${t('parentAccountsDeleted').replace('#', response.data.deletedParentAccounts)}`;
+      }
+      
+      setSuccess(successMsg);
+      fetchChildren();
+      setDeleteDialog({ open: false, childId: null, childName: '', affectedParents: [], loading: false });
+    } catch (err) {
+      setError(t('failedToUpdateProfile'));
+      setDeleteDialog(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialog({ open: false, childId: null, childName: '', affectedParents: [], loading: false });
   };
 
   const handleCopyCode = (code) => {
@@ -354,7 +392,7 @@ function StaffDashboard() {
                         <IconButton
                           size="small"
                           color="error"
-                          onClick={() => handleDelete(child.id, child.name)}
+                          onClick={() => handleDeleteClick(child.id, child.name)}
                           title={t('delete')}
                         >
                           <DeleteIcon />
@@ -422,6 +460,69 @@ function StaffDashboard() {
               disabled={!formData.name}
             >
               {editChild ? t('save') : t('add')}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={deleteDialog.open} onClose={handleDeleteCancel} maxWidth="sm" fullWidth>
+          <DialogTitle>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <WarningIcon color="warning" />
+              {t('confirmDeleteChildTitle')}
+            </Box>
+          </DialogTitle>
+          <DialogContent>
+            {deleteDialog.loading ? (
+              <Typography>{t('loading')}</Typography>
+            ) : (
+              <>
+                <Typography variant="body1" gutterBottom>
+                  {t('confirmDeleteChildMessage').replace('#', deleteDialog.childName)}
+                </Typography>
+                
+                {deleteDialog.affectedParents.length > 0 && (
+                  <>
+                    <Alert severity="warning" sx={{ mt: 2, mb: 2 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                        {t('deleteChildWarningParentAccounts')}
+                      </Typography>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        {t('deleteChildAffectedParents').replace('#', deleteDialog.affectedParents.length)}
+                      </Typography>
+                      <Box component="ul" sx={{ mt: 1, mb: 1, pl: 2 }}>
+                        {deleteDialog.affectedParents.map(parent => (
+                          <li key={parent.id}>
+                            <Typography variant="body2">
+                              {parent.firstName} {parent.lastName} ({parent.email})
+                            </Typography>
+                          </li>
+                        ))}
+                      </Box>
+                      <Typography variant="body2">
+                        {t('deleteChildEmailNotification')}
+                      </Typography>
+                    </Alert>
+                  </>
+                )}
+
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                  {t('deleteChildIrreversible')}
+                </Typography>
+              </>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleDeleteCancel} disabled={deleteDialog.loading}>
+              {t('cancel')}
+            </Button>
+            <Button 
+              onClick={handleDeleteConfirm} 
+              color="error" 
+              variant="contained"
+              disabled={deleteDialog.loading}
+            >
+              {deleteDialog.loading ? t('deleting') : t('deleteChild')}
             </Button>
           </DialogActions>
         </Dialog>

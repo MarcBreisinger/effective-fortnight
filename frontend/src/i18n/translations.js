@@ -17,8 +17,8 @@ export const translations = {
     register: 'Register',
     email: 'Email',
     password: 'Password',
-    firstName: 'First Name',
-    lastName: 'Last Name',
+    firstName: 'Your First Name',
+    lastName: 'Your Last Name',
     phone: 'Phone',
     phoneOptional: 'Phone (Optional)',
     registrationCode: 'Registration Code',
@@ -79,8 +79,16 @@ export const translations = {
     groupNotAttending: '\'s group is not attending today',
     capacityReduced: 'Due to reduced capacity, the group cannot attend today.',
     needsDayCareSport: 'needs a day care spot today urgently',
+    needsDayCareSportUrgent: '# needs a day care spot today urgently',
+    wouldLikeDayCareSport: '# would be happy about a day care spot today',
+    urgentRequestTooltip: 'Your request will be prioritized in the waiting list',
+    flexibleRequestTooltip: 'Your request will be processed after urgent requests',
+    cannotModifyPastDates: 'Cannot modify past dates',
+    urgentRequest: 'urgent',
+    flexibleRequest: 'flexible',
     willNotAttendToday: 'will not attend today',
     removeFromWaitingList: 'Remove from waiting list',
+    giveUpSlotForChild: 'Give up slot for #',
     
     // Attendance Actions
     giveUpSlot: 'Give Up Day Care Slot',
@@ -136,7 +144,15 @@ export const translations = {
     childUpdatedSuccess: 'Child updated successfully',
     childDeletedSuccess: 'Child deleted successfully',
     confirmDeleteChild: 'Are you sure you want to delete this child? This action cannot be undone.',
+    confirmDeleteChildTitle: 'Delete Child from System?',
+    confirmDeleteChildMessage: 'Are you sure you want to permanently delete # from the day care system?',
+    deleteChildWarningParentAccounts: 'Important: This will affect parent accounts',
+    deleteChildAffectedParents: 'This child is the last child for # parent account(s). Their accounts will be permanently deleted:',
+    deleteChildEmailNotification: 'These parents will receive an email notification about the account closure.',
+    deleteChildIrreversible: 'This action cannot be undone. All data will be permanently deleted.',
+    parentAccountsDeleted: '# parent account(s) deleted and notified.',
     deleteChild: 'Delete Child',
+    deleting: 'Deleting...',
     codeCopied: 'Registration code copied to clipboard',
     
     // Rotation Editor
@@ -207,7 +223,14 @@ export const translations = {
     showSlotOccupancyLabel: 'Show whose slot is being occupied',
     showSlotOccupancyHelp: 'When enabled, you\'ll see which child is using whose slot when children from other groups attend',
     usingSlotOf: 'Using #\'s slot',
+    usingFreeSlotFromGroup: 'Free slot from Group #',
     slotUsedBy: 'Slot used by #',
+    
+    // Language and App Preferences
+    language: 'Language',
+    preferences: 'Preferences',
+    switchToGerman: 'Switch to German (Deutsch)',
+    switchToEnglish: 'Switch to English',
     
     // Errors
     failedToLoadSchedule: 'Failed to load schedule',
@@ -251,8 +274,8 @@ export const translations = {
     register: 'Registrieren',
     email: 'E-Mail',
     password: 'Passwort',
-    firstName: 'Vorname',
-    lastName: 'Nachname',
+    firstName: 'Ihr Vorname',
+    lastName: 'Ihr Nachname',
     phone: 'Telefon',
     phoneOptional: 'Telefon (Optional)',
     registrationCode: 'Registrierungscode',
@@ -313,8 +336,16 @@ export const translations = {
     groupNotAttending: 's Gruppe nimmt heute nicht teil',
     capacityReduced: 'Aufgrund reduzierter Kapazität kann die Gruppe heute nicht teilnehmen.',
     needsDayCareSport: 'braucht heute dringend einen Kita-Platz',
+    needsDayCareSportUrgent: '# braucht heute dringend einen Kita-Platz',
+    wouldLikeDayCareSport: '# würde sich über einen Kita-Platz heute freuen',
+    urgentRequestTooltip: 'Ihre Anfrage wird auf der Warteliste priorisiert',
+    flexibleRequestTooltip: 'Ihre Anfrage wird nach dringenden Anfragen bearbeitet',
+    cannotModifyPastDates: 'Vergangene Termine können nicht geändert werden',
+    urgentRequest: 'dringend',
+    flexibleRequest: 'flexibel',
     willNotAttendToday: 'wird heute nicht teilnehmen',
     removeFromWaitingList: 'Von Warteliste entfernen',
+    giveUpSlotForChild: 'Platz abgeben für #',
     
     // Attendance Actions
     giveUpSlot: 'Kita-Platz abgeben',
@@ -370,7 +401,15 @@ export const translations = {
     childUpdatedSuccess: 'Kind erfolgreich aktualisiert',
     childDeletedSuccess: 'Kind erfolgreich gelöscht',
     confirmDeleteChild: 'Möchten Sie dieses Kind wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.',
+    confirmDeleteChildTitle: 'Kind aus System löschen?',
+    confirmDeleteChildMessage: 'Möchten Sie # wirklich dauerhaft aus dem Kita-System löschen?',
+    deleteChildWarningParentAccounts: 'Wichtig: Dies betrifft Elternkonten',
+    deleteChildAffectedParents: 'Dieses Kind ist das letzte Kind für # Elternkonto(s). Diese Konten werden dauerhaft gelöscht:',
+    deleteChildEmailNotification: 'Diese Eltern erhalten eine E-Mail-Benachrichtigung über die Kontenschließung.',
+    deleteChildIrreversible: 'Diese Aktion kann nicht rückgängig gemacht werden. Alle Daten werden dauerhaft gelöscht.',
+    parentAccountsDeleted: '# Elternkonto(s) gelöscht und benachrichtigt.',
     deleteChild: 'Kind löschen',
+    deleting: 'Wird gelöscht...',
     codeCopied: 'Registrierungscode in Zwischenablage kopiert',
     
     // Rotation Editor
@@ -440,8 +479,15 @@ export const translations = {
     displayPreferences: 'Anzeigeeinstellungen',
     showSlotOccupancyLabel: 'Anzeigen, wessen Platz belegt wird',
     showSlotOccupancyHelp: 'Wenn aktiviert, sehen Sie, welches Kind den Platz von wem nutzt, wenn Kinder aus anderen Gruppen teilnehmen',
-    usingSlotOf: 'Nutzt den Platz von #',
-    slotUsedBy: 'Platz wird genutzt von #',
+    usingSlotOf: 'Nutzt Platz von #',
+    usingFreeSlotFromGroup: 'Freier Platz aus Gruppe #',
+    slotUsedBy: 'Platz wird von # genutzt',
+    
+    // Language and App Preferences
+    language: 'Sprache',
+    preferences: 'Einstellungen',
+    switchToGerman: 'Zu Deutsch wechseln',
+    switchToEnglish: 'Switch to English',
     
     // Errors
     failedToLoadSchedule: 'Fehler beim Laden des Zeitplans',

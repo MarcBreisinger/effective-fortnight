@@ -80,15 +80,22 @@ CREATE TABLE IF NOT EXISTS daily_attendance_status (
     child_id INT NOT NULL,
     attendance_date DATE NOT NULL,
     status ENUM('attending', 'slot_given_up', 'waiting_list') NOT NULL DEFAULT 'attending',
+    urgency_level ENUM('urgent', 'flexible') DEFAULT 'urgent' NOT NULL COMMENT 'Priority level for waiting list: urgent requests processed before flexible',
     parent_message TEXT,
     updated_by_user INT NULL,
+    occupied_slot_from_child_id INT NULL COMMENT 'If this child is using someone elses slot, reference to original slot owner',
+    occupied_slot_from_group ENUM('A', 'B', 'C', 'D') NULL COMMENT 'If child uses free slot from attending group (not specific child), this tracks which group',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (child_id) REFERENCES children(id) ON DELETE CASCADE,
     FOREIGN KEY (updated_by_user) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (occupied_slot_from_child_id) REFERENCES children(id) ON DELETE SET NULL,
     UNIQUE KEY unique_child_date (child_id, attendance_date),
     INDEX idx_child_date (child_id, attendance_date),
     INDEX idx_status (status),
-    INDEX idx_date (attendance_date)
+    INDEX idx_date (attendance_date),
+    INDEX idx_occupied_slot (occupied_slot_from_child_id),
+    INDEX idx_occupied_slot_group (occupied_slot_from_group),
+    INDEX idx_urgency_timestamp (urgency_level DESC, updated_at ASC) COMMENT 'Optimizes waiting list queue sorting by priority then FIFO'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Password reset tokens (supports password recovery functionality)

@@ -11,22 +11,27 @@ import {
   DialogContent,
   DialogActions,
   Avatar,
-  Box
+  Box,
+  Tooltip,
+  Stack
 } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import { format } from 'date-fns';
 import { attendanceAPI } from '../services/api';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getChildAvatarPath } from '../utils/animalAvatars';
+import { isPastDate } from '../utils/dateValidation';
 
 function AttendanceStatusCard({ child, selectedDate, canAttend, isAdditionallyAttending, lastUpdate, onStatusChange }) {
   const { t } = useLanguage();
+  const isPast = isPastDate(selectedDate);
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   const [parentMessage, setParentMessage] = useState('');
   const [actionType, setActionType] = useState('');
+  const [urgencyLevel, setUrgencyLevel] = useState('urgent');
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
@@ -44,8 +49,9 @@ function AttendanceStatusCard({ child, selectedDate, canAttend, isAdditionallyAt
     loadStatus();
   }, [loadStatus, lastUpdate]);
 
-  const handleOpenDialog = (action) => {
+  const handleOpenDialog = (action, urgency = 'urgent') => {
     setActionType(action);
+    setUrgencyLevel(urgency);
     setParentMessage('');
     setOpenDialog(true);
   };
@@ -63,7 +69,7 @@ function AttendanceStatusCard({ child, selectedDate, canAttend, isAdditionallyAt
     try {
       let newStatus = actionType; // Use actionType directly as it matches the status enum
       
-      await attendanceAPI.updateStatus(child.id, dateStr, newStatus, parentMessage);
+      await attendanceAPI.updateStatus(child.id, dateStr, newStatus, parentMessage, urgencyLevel);
       await loadStatus();
       handleCloseDialog();
       
@@ -97,7 +103,7 @@ function AttendanceStatusCard({ child, selectedDate, canAttend, isAdditionallyAt
 
   if (isSlotGivenUp) {
     statusMessage = `${child.name} ${t('doesNotHaveSlot')}`;
-    statusDetails = `${t('slotYieldedBy')} ${status.updated_by.first_name} ${status.updated_by.last_name} ${t('at')} ${format(new Date(status.updated_at), 'HH:mm dd.MM.yyyy')}`;
+    statusDetails = `${t('slotYieldedBy')} ${status.updated_by.first_name} ${status.updated_by.last_name} ${t('at')} ${format(new Date(status.updated_at), 'HH:mm:ss dd.MM.yyyy')}`;
     if (status.parent_message) {
       statusDetails += `\n${status.parent_message}`;
     }
@@ -106,7 +112,7 @@ function AttendanceStatusCard({ child, selectedDate, canAttend, isAdditionallyAt
     severity = 'warning';
   } else if (isWaitingList) {
     statusMessage = `${child.name} ${t('isOnWaitingList')}`;
-    statusDetails = `${t('addedAt')} ${format(new Date(status.updated_at), 'HH:mm')} ${t('by')} ${status.updated_by.first_name} ${status.updated_by.last_name}`;
+    statusDetails = `${t('addedAt')} ${format(new Date(status.updated_at), 'HH:mm:ss')} ${t('by')} ${status.updated_by.first_name} ${status.updated_by.last_name}`;
     if (status.parent_message) {
       statusDetails += `\n${status.parent_message}`;
     }
@@ -168,14 +174,52 @@ function AttendanceStatusCard({ child, selectedDate, canAttend, isAdditionallyAt
             )}
           </Alert>
 
-          <Button
-            variant="contained"
-            color={buttonAction === 'give_up' ? 'warning' : 'primary'}
-            fullWidth
-            onClick={() => handleOpenDialog(buttonAction)}
-          >
-            {buttonText}
-          </Button>
+          {buttonAction === 'waiting_list' ? (
+            <Stack spacing={1}>
+              <Tooltip title={isPast ? t('cannotModifyPastDates') : t('urgentRequestTooltip')} placement="top">
+                <span>
+                  <Button
+                    variant="contained"
+                    color="error"
+                    fullWidth
+                    onClick={() => handleOpenDialog('waiting_list', 'urgent')}
+                    startIcon={<span>🔥</span>}
+                    disabled={isPast}
+                  >
+                    {t('needsDayCareSportUrgent').replace('#', child.name)}
+                  </Button>
+                </span>
+              </Tooltip>
+              <Tooltip title={isPast ? t('cannotModifyPastDates') : t('flexibleRequestTooltip')} placement="top">
+                <span>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    fullWidth
+                    onClick={() => handleOpenDialog('waiting_list', 'flexible')}
+                    startIcon={<span>⭐</span>}
+                    disabled={isPast}
+                  >
+                    {t('wouldLikeDayCareSport').replace('#', child.name)}
+                  </Button>
+                </span>
+              </Tooltip>
+            </Stack>
+          ) : (
+            <Tooltip title={isPast ? t('cannotModifyPastDates') : ''} placement="top">
+              <span>
+                <Button
+                  variant="contained"
+                  color={buttonAction === 'give_up' ? 'warning' : 'primary'}
+                  fullWidth
+                  onClick={() => handleOpenDialog(buttonAction)}
+                  disabled={isPast}
+                >
+                  {buttonText}
+                </Button>
+              </span>
+            </Tooltip>
+          )}
         </CardContent>
       </Card>
 

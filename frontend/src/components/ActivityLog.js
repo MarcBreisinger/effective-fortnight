@@ -87,7 +87,13 @@ const ActivityLog = ({ activities, loading }) => {
     // Get translated text
     const userAction = t(translationKey, params);
     
-    return `${timestamp} - ${userAction}`;
+    // Add urgency emoji for waiting_list_joined events
+    let urgencyPrefix = '';
+    if (event_type === 'waiting_list_joined' && metadata?.urgency_level) {
+      urgencyPrefix = metadata.urgency_level === 'urgent' ? '🔥 ' : '⭐ ';
+    }
+    
+    return `${timestamp} - ${urgencyPrefix}${userAction}`;
   };
 
   if (loading) {
@@ -133,14 +139,23 @@ const ActivityLog = ({ activities, loading }) => {
                   </Typography>
                 }
                 secondary={
-                  activity.metadata?.group && (
-                    <Chip 
-                      label={`Group ${activity.metadata.group}`} 
-                      size="small" 
-                      variant="outlined"
-                      sx={{ mt: 0.5 }}
-                    />
-                  )
+                  <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, flexWrap: 'wrap' }}>
+                    {activity.metadata?.group && (
+                      <Chip 
+                        label={`Group ${activity.metadata.group}`} 
+                        size="small" 
+                        variant="outlined"
+                      />
+                    )}
+                    {activity.event_type === 'waiting_list_joined' && activity.metadata?.urgency_level && (
+                      <Chip 
+                        label={activity.metadata.urgency_level === 'urgent' ? t('urgentRequest') : t('flexibleRequest')} 
+                        size="small" 
+                        variant="outlined"
+                        color={activity.metadata.urgency_level === 'urgent' ? 'error' : 'primary'}
+                      />
+                    )}
+                  </Box>
                 }
               />
             </ListItem>

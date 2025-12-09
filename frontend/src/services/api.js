@@ -67,6 +67,9 @@ export const childrenAPI = {
   update: (id, childData) => 
     axios.put(`${API_URL}/children/${id}`, childData),
   
+  checkDeletionImpact: (id) =>
+    axios.get(`${API_URL}/children/${id}/check-deletion-impact`),
+  
   delete: (id) => 
     axios.delete(`${API_URL}/children/${id}`)
 };
@@ -95,10 +98,11 @@ export const attendanceAPI = {
   getStatus: (childId, date) => 
     axios.get(`${API_URL}/attendance/child/${childId}/date/${date}`),
   
-  updateStatus: (childId, date, status, parentMessage) => 
+  updateStatus: (childId, date, status, parentMessage, urgencyLevel) => 
     axios.post(`${API_URL}/attendance/child/${childId}/date/${date}`, { 
       status, 
-      parentMessage 
+      parentMessage,
+      urgencyLevel 
     }),
   
   getWaitingList: (date) => 

@@ -27,21 +27,21 @@ import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { format, addDays, subDays } from 'date-fns';
 import { de } from 'date-fns/locale';
-import LogoutIcon from '@mui/icons-material/Logout';
-import SettingsIcon from '@mui/icons-material/Settings';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import ListIcon from '@mui/icons-material/List';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import PersonIcon from '@mui/icons-material/Person';
-import LanguageIcon from '@mui/icons-material/Language';
 import HistoryIcon from '@mui/icons-material/History';
+import CancelIcon from '@mui/icons-material/Cancel';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { scheduleAPI, activityAPI } from '../services/api';
+import { scheduleAPI, activityAPI, attendanceAPI } from '../services/api';
 import AttendanceStatusCard from '../components/AttendanceStatusCard';
 import ActivityLog from '../components/ActivityLog';
 import { getChildAvatarPath } from '../utils/animalAvatars';
+import { isPastDate } from '../utils/dateValidation';
 
 // Helper function to get nearest weekday
 const getNearestWeekday = (date) => {
@@ -56,8 +56,8 @@ const getNearestWeekday = (date) => {
 };
 
 function MainSchedule() {
-  const { user, logout, isStaff, isParent } = useAuth();
-  const { t, language, toggleLanguage } = useLanguage();
+  const { user, isStaff, isParent } = useAuth();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(getNearestWeekday(new Date()));
   const [scheduleData, setScheduleData] = useState(null);
@@ -73,6 +73,9 @@ function MainSchedule() {
   const previousAttendingGroupsRef = useRef(null); // Use ref instead of state to avoid re-renders
   const abortControllerRef = useRef(null); // Track abort controller for cancelling requests
   const isFetchingRef = useRef(false); // Prevent overlapping requests
+
+  // Check if selected date is in the past
+  const isSelectedDatePast = isPastDate(selectedDate);
 
   // Memoize schedule data to prevent unnecessary recalculations
   const memoizedScheduleData = useMemo(() => scheduleData, [scheduleData]);
@@ -234,11 +237,6 @@ function MainSchedule() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
   const handlePreviousDay = () => {
     let newDate = subDays(selectedDate, 1);
     // Skip weekends - if Saturday, go to Friday
@@ -272,9 +270,6 @@ function MainSchedule() {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             {t('dayCareRotationSchedule')}
           </Typography>
-          <Typography variant="body1" sx={{ mr: 2 }}>
-            {user?.firstName} {user?.lastName} ({user?.role})
-          </Typography>
           <Tooltip title={t('activityLog.title')}>
             <IconButton 
               color="inherit" 
@@ -284,14 +279,6 @@ function MainSchedule() {
               <HistoryIcon />
             </IconButton>
           </Tooltip>
-          <Button
-            color="inherit"
-            startIcon={<LanguageIcon />}
-            onClick={toggleLanguage}
-            sx={{ mr: 1 }}
-          >
-            {language === 'en' ? 'DE' : 'EN'}
-          </Button>
           {isStaff && (
             <>
               <IconButton color="inherit" onClick={() => navigate('/staff/rotations')} title={t('editGroupRotations')}>
@@ -302,13 +289,12 @@ function MainSchedule() {
               </IconButton>
             </>
           )}
-          {isParent && (
-            <IconButton color="inherit" onClick={() => navigate('/settings')} title={t('settings')}>
-              <SettingsIcon />
-            </IconButton>
-          )}
-          <IconButton color="inherit" onClick={handleLogout} title={t('logout')}>
-            <LogoutIcon />
+          <IconButton 
+            color="inherit" 
+            onClick={() => navigate(isStaff ? '/staff/settings' : '/settings')} 
+            title={t('settings')}
+          >
+            <AccountCircleIcon />
           </IconButton>
         </Toolbar>
       </AppBar>
@@ -446,11 +432,17 @@ function MainSchedule() {
                   { value: 4, label: '4' }
                 ]}
                 valueLabelDisplay="auto"
+                disabled={isSelectedDatePast}
               />
             </Box>
             <Typography variant="body2" align="center" sx={{ mt: 1 }}>
               {t('groupsAllowed')}: {capacityLimit} {t('of')} 4
             </Typography>
+            {isSelectedDatePast && (
+              <Alert severity="info" sx={{ mt: 2 }}>
+                {t('cannotModifyPastDates')}
+              </Alert>
+            )}
           </Paper>
         )}
 
@@ -464,7 +456,6 @@ function MainSchedule() {
               <Paper elevation={3} sx={{ p: 3, mb: 3, backgroundColor: '#e8f5e9', border: '2px solid #4caf50' }}>
                 <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Chip label={t('additionallyAttending')} color="success" />
-                  <span>{t('childrenMovedFromWaitingList')}</span>
                 </Typography>
                 <Box component="ul" sx={{ pl: 2, mt: 2 }}>
                   {memoizedScheduleData.additionally_attending.map(child => (
@@ -478,18 +469,21 @@ function MainSchedule() {
                             </Typography>
                           )}
                         </Typography>
-                        {(isStaff || user?.showSlotOccupancy) && child.occupied_slot_from_child_name && (
+                        {(isStaff || user?.showSlotOccupancy) && (child.occupied_slot_from_child_name || child.occupied_slot_from_group) && (
                           <Typography 
                             variant="caption" 
                             color="text.secondary"
                             sx={{ fontSize: '0.75rem', fontStyle: 'italic', display: 'block', mt: 0.5 }}
                           >
-                            {t('usingSlotOf').replace('#', child.occupied_slot_from_child_name)}
+                            {child.occupied_slot_from_child_name 
+                              ? t('usingSlotOf').replace('#', child.occupied_slot_from_child_name)
+                              : t('usingFreeSlotFromGroup').replace('#', child.occupied_slot_from_group)
+                            }
                           </Typography>
                         )}
                         {child.updated_at && child.updated_by && (
                           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                            {t('addedAt')} {format(new Date(child.updated_at), 'HH:mm')} {t('by')} {child.updated_by.first_name} {child.updated_by.last_name}
+                            {t('addedAt')} {format(new Date(child.updated_at), 'HH:mm:ss')} {t('by')} {child.updated_by.first_name} {child.updated_by.last_name}
                           </Typography>
                         )}
                       </Box>
@@ -503,7 +497,6 @@ function MainSchedule() {
             <Paper elevation={3} sx={{ p: 3, mb: 3, backgroundColor: '#e3f2fd', border: '2px solid #2196f3' }}>
               <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Chip label={t('waitingList')} color="info" />
-                <span>{t('childrenWaitingForSlots')}</span>
               </Typography>
               {memoizedScheduleData.waiting_list && memoizedScheduleData.waiting_list.length > 0 ? (
                 <Box component="ul" sx={{ pl: 2, mt: 2 }}>
@@ -511,6 +504,7 @@ function MainSchedule() {
                     <li key={child.id} style={{ marginBottom: '8px' }}>
                       <Box>
                         <Typography variant="body1">
+                          {child.urgency_level === 'urgent' ? '🔥 ' : '⭐ '}
                           <strong>{child.name}</strong> (Group {child.assigned_group})
                           {child.parent_message && (
                             <Typography variant="body2" color="text.secondary" component="span" sx={{ ml: 1 }}>
@@ -519,8 +513,13 @@ function MainSchedule() {
                           )}
                         </Typography>
                         {child.updated_at && child.updated_by && (
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                            Added at {format(new Date(child.updated_at), 'HH:mm')} by {child.updated_by.first_name} {child.updated_by.last_name}
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                            Added at {format(new Date(child.updated_at), 'HH:mm:ss')} by {child.updated_by.first_name} {child.updated_by.last_name}
+                            {child.urgency_level && (
+                              <span style={{ marginLeft: '8px', fontWeight: 'bold' }}>
+                                ({child.urgency_level === 'urgent' ? t('urgentRequest') : t('flexibleRequest')})
+                              </span>
+                            )}
                           </Typography>
                         )}
                         {(isStaff || user?.showSlotOccupancy) && child.slot_used_by_child_name && (
@@ -571,40 +570,19 @@ function MainSchedule() {
                         />
                       </Box>
                       
-                      {/* Capacity Display */}
-                      <Box sx={{ mb: 2, p: 1.5, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 1 }}>
-                        <Typography variant="body2" color="text.secondary" gutterBottom>
-                          {t('capacity')}
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
-                          <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                            {groupData.attending}
-                          </Typography>
-                          <Typography variant="h6" color="text.secondary">
-                            / {groupData.capacity}
-                          </Typography>
-                        </Box>
-                        {groupData.canAttend && (
-                          <Chip 
-                            label={groupData.available > 0 ? `${groupData.available} ${t('available')}` : t('full')}
-                            size="small"
-                            color={groupData.available > 0 ? 'success' : 'error'}
-                            sx={{ mt: 1 }}
-                          />
-                        )}
-                      </Box>
-                      
                       <Typography variant="body2" color="text.secondary" gutterBottom>
                         {t('priority')}: #{index + 1}
                       </Typography>
                       <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>
-                        {t('children')} ({groupData.children.length}):
+                        {groupData.children.length} {t('children')}:
                       </Typography>
                       {groupData.children.length > 0 ? (
                         <Box component="ul" sx={{ m: 0, p: 0, listStyle: 'none' }}>
                           {groupData.children.map(child => {
                             // Check if this child is in additionally attending list
                             const isAdditionallyAttending = memoizedScheduleData.additionally_attending?.some(ac => ac.id === child.id);
+                            // Check if child actually has a slot (group can attend OR additionally attending)
+                            const hasSlot = groupData.canAttend || isAdditionallyAttending;
                             
                             return (
                               <li key={child.id} style={{ marginBottom: '8px' }}>
@@ -632,39 +610,135 @@ function MainSchedule() {
                                     >
                                       {child.name}
                                     </Typography>
-                                    {(isStaff || user?.showSlotOccupancy) && child.occupied_slot_from_child_name && (
+                                    {(isStaff || user?.showSlotOccupancy) && (child.occupied_slot_from_child_name || child.occupied_slot_from_group) && (
                                       <Typography 
                                         variant="caption" 
                                         color="text.secondary"
                                         sx={{ fontSize: '0.65rem', fontStyle: 'italic' }}
                                       >
-                                        {t('usingSlotOf').replace('#', child.occupied_slot_from_child_name)}
+                                        {child.occupied_slot_from_child_name 
+                                          ? t('usingSlotOf').replace('#', child.occupied_slot_from_child_name)
+                                          : t('usingFreeSlotFromGroup').replace('#', child.occupied_slot_from_group)
+                                        }
+                                      </Typography>
+                                    )}
+                                    {child.attendance_status === 'slot_given_up' && (
+                                      <Typography 
+                                        variant="caption" 
+                                        color="text.secondary"
+                                        sx={{ fontSize: '0.65rem', fontStyle: 'italic' }}
+                                      >
+                                        {t('staysHome')}
+                                      </Typography>
+                                    )}
+                                    {child.attendance_status === 'waiting_list' && isAdditionallyAttending && (
+                                      <Typography 
+                                        variant="caption" 
+                                        color="success.main"
+                                        sx={{ fontSize: '0.65rem', fontStyle: 'italic' }}
+                                      >
+                                        {t('additionallyAttendingLabel')}
+                                      </Typography>
+                                    )}
+                                    {child.attendance_status === 'waiting_list' && !isAdditionallyAttending && (
+                                      <Typography 
+                                        variant="caption" 
+                                        color="text.secondary"
+                                        sx={{ fontSize: '0.65rem', fontStyle: 'italic' }}
+                                      >
+                                        {t('onWaitingList')}
                                       </Typography>
                                     )}
                                   </Box>
-                                  {child.attendance_status === 'slot_given_up' && (
-                                    <Chip 
-                                      label={t('staysHome')} 
-                                      size="small" 
-                                      color="warning"
-                                      sx={{ ml: 1, height: 20, fontSize: '0.7rem' }}
-                                    />
-                                  )}
-                                  {child.attendance_status === 'waiting_list' && isAdditionallyAttending && (
-                                    <Chip 
-                                      label={t('additionallyAttendingLabel')} 
-                                      size="small" 
-                                      color="success"
-                                      sx={{ ml: 1, height: 20, fontSize: '0.7rem' }}
-                                    />
-                                  )}
-                                  {child.attendance_status === 'waiting_list' && !isAdditionallyAttending && (
-                                    <Chip 
-                                      label={t('onWaitingList')} 
-                                      size="small" 
-                                      color="info"
-                                      sx={{ ml: 1, height: 20, fontSize: '0.7rem' }}
-                                    />
+                                  {/* Staff action buttons */}
+                                  {isStaff && !isSelectedDatePast && (
+                                    <Box sx={{ display: 'flex', gap: 0.5, ml: 'auto' }}>
+                                      {/* Show "Give up slot" button ONLY if child actually has a slot */}
+                                      {hasSlot && (!child.attendance_status || child.attendance_status === 'attending') && (
+                                        <Tooltip title={t('giveUpSlotForChild').replace('#', child.name)}>
+                                          <IconButton
+                                            size="small"
+                                            color="warning"
+                                            onClick={async () => {
+                                              if (window.confirm(t('confirmGiveUpSlot').replace('#', child.name))) {
+                                                try {
+                                                  await attendanceAPI.updateStatus(child.id, format(selectedDate, 'yyyy-MM-dd'), 'slot_given_up', '');
+                                                  await fetchSchedule();
+                                                  setLastUpdate(Date.now());
+                                                } catch (err) {
+                                                  console.error('Failed to give up slot:', err);
+                                                }
+                                              }
+                                            }}
+                                            sx={{ p: 0.5 }}
+                                          >
+                                            <CancelIcon sx={{ fontSize: 16 }} />
+                                          </IconButton>
+                                        </Tooltip>
+                                      )}
+                                      {/* Show "Request slot" buttons if child doesn't have a slot OR gave up slot */}
+                                      {(!hasSlot || child.attendance_status === 'slot_given_up' || (child.attendance_status === 'waiting_list' && !isAdditionallyAttending)) && (
+                                        <>
+                                          <Tooltip title={t('urgentRequestTooltip')}>
+                                            <IconButton
+                                              size="small"
+                                              color="error"
+                                              onClick={async () => {
+                                                try {
+                                                  await attendanceAPI.updateStatus(child.id, format(selectedDate, 'yyyy-MM-dd'), 'waiting_list', '', 'urgent');
+                                                  await fetchSchedule();
+                                                  setLastUpdate(Date.now());
+                                                } catch (err) {
+                                                  console.error('Failed to join waiting list:', err);
+                                                }
+                                              }}
+                                              sx={{ p: 0.5 }}
+                                            >
+                                              <span style={{ fontSize: '14px' }}>🔥</span>
+                                            </IconButton>
+                                          </Tooltip>
+                                          <Tooltip title={t('flexibleRequestTooltip')}>
+                                            <IconButton
+                                              size="small"
+                                              color="primary"
+                                              onClick={async () => {
+                                                try {
+                                                  await attendanceAPI.updateStatus(child.id, format(selectedDate, 'yyyy-MM-dd'), 'waiting_list', '', 'flexible');
+                                                  await fetchSchedule();
+                                                  setLastUpdate(Date.now());
+                                                } catch (err) {
+                                                  console.error('Failed to join waiting list:', err);
+                                                }
+                                              }}
+                                              sx={{ p: 0.5 }}
+                                            >
+                                              <span style={{ fontSize: '14px' }}>⭐</span>
+                                            </IconButton>
+                                          </Tooltip>
+                                        </>
+                                      )}
+                                      {/* Show "Remove from waiting list" button if child is on waiting list */}
+                                      {child.attendance_status === 'waiting_list' && !isAdditionallyAttending && (
+                                        <Tooltip title={t('removeFromWaitingList')}>
+                                          <IconButton
+                                            size="small"
+                                            color="default"
+                                            onClick={async () => {
+                                              try {
+                                                await attendanceAPI.updateStatus(child.id, format(selectedDate, 'yyyy-MM-dd'), 'remove_waiting_list', '');
+                                                await fetchSchedule();
+                                                setLastUpdate(Date.now());
+                                              } catch (err) {
+                                                console.error('Failed to remove from waiting list:', err);
+                                              }
+                                            }}
+                                            sx={{ p: 0.5 }}
+                                          >
+                                            <CancelIcon sx={{ fontSize: 16 }} />
+                                          </IconButton>
+                                        </Tooltip>
+                                      )}
+                                    </Box>
                                   )}
                                 </Box>
                               </li>
