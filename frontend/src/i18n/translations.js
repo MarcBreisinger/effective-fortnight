@@ -232,6 +232,17 @@ export const translations = {
     switchToGerman: 'Switch to German (Deutsch)',
     switchToEnglish: 'Switch to English',
     
+    // Push Notifications
+    pushNotifications: 'Push Notifications',
+    enablePushNotifications: 'Enable push notifications',
+    pushNotificationsHelp: 'Get notified when your child loses their attendance slot due to capacity changes',
+    pushNotificationsEnabled: 'Push notifications enabled successfully',
+    pushNotificationsDisabled: 'Push notifications disabled',
+    pushNotificationsError: 'Failed to update notification settings',
+    pushNotificationsNotSupported: 'Push notifications are not supported on this device or browser',
+    pushNotificationsPermissionDenied: 'Notification permission was denied. Please enable notifications in your browser settings.',
+    pushNotificationsIOSInstructions: 'On iOS, you need to add this app to your home screen to receive push notifications. Tap the Share button and select "Add to Home Screen".',
+    
     // Errors
     failedToLoadSchedule: 'Failed to load schedule',
     failedToUpdateCapacity: 'Failed to update capacity',
@@ -488,6 +499,17 @@ export const translations = {
     preferences: 'Einstellungen',
     switchToGerman: 'Zu Deutsch wechseln',
     switchToEnglish: 'Switch to English',
+    
+    // Push Notifications
+    pushNotifications: 'Push-Benachrichtigungen',
+    enablePushNotifications: 'Push-Benachrichtigungen aktivieren',
+    pushNotificationsHelp: 'Erhalten Sie eine Benachrichtigung, wenn Ihr Kind seinen Betreuungsplatz aufgrund von Kapazitätsänderungen verliert',
+    pushNotificationsEnabled: 'Push-Benachrichtigungen erfolgreich aktiviert',
+    pushNotificationsDisabled: 'Push-Benachrichtigungen deaktiviert',
+    pushNotificationsError: 'Fehler beim Aktualisieren der Benachrichtigungseinstellungen',
+    pushNotificationsNotSupported: 'Push-Benachrichtigungen werden auf diesem Gerät oder Browser nicht unterstützt',
+    pushNotificationsPermissionDenied: 'Benachrichtigungsberechtigung wurde verweigert. Bitte aktivieren Sie Benachrichtigungen in Ihren Browsereinstellungen.',
+    pushNotificationsIOSInstructions: 'Auf iOS müssen Sie diese App zu Ihrem Startbildschirm hinzufügen, um Push-Benachrichtigungen zu erhalten. Tippen Sie auf die Teilen-Schaltfläche und wählen Sie "Zum Home-Bildschirm".',
     
     // Errors
     failedToLoadSchedule: 'Fehler beim Laden des Zeitplans',

@@ -8,6 +8,7 @@ const childRoutes = require('./routes/children');
 const scheduleRoutes = require('./routes/schedules');
 const attendanceRoutes = require('./routes/attendance');
 const activityRoutes = require('./routes/activity');
+const notificationRoutes = require('./routes/notifications');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -22,6 +23,7 @@ app.use('/api/children', childRoutes);
 app.use('/api/schedules', scheduleRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/activity', activityRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

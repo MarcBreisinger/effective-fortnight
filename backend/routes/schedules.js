@@ -4,6 +4,7 @@ const db = require('../config/database');
 const { authenticateToken, requireStaff } = require('../middleware/auth');
 const { processWaitingList } = require('../utils/waitingListProcessor');
 const { rejectPastDates } = require('../utils/dateValidation');
+const { sendPushNotificationsToUsers } = require('../utils/pushNotificationService');
 
 const router = express.Router();
 
@@ -243,6 +244,26 @@ router.patch('/date/:date/capacity',
 
       // Calculate attending groups
       const attendingGroups = groupOrder.slice(0, capacityLimit);
+      const oldAttendingGroups = oldCapacity !== null ? groupOrder.slice(0, oldCapacity) : [];
+      
+      // Detect groups that are being excluded (capacity reduction)
+      const excludedGroups = oldAttendingGroups.filter(g => !attendingGroups.includes(g));
+      
+      // Find children who will lose their slots due to capacity reduction
+      let displacedChildren = [];
+      if (excludedGroups.length > 0) {
+        const [displaced] = await db.query(
+          `SELECT DISTINCT c.id as child_id, c.name as child_name, c.assigned_group, 
+                  ucl.user_id as parent_id
+           FROM children c
+           JOIN user_child_links ucl ON c.id = ucl.child_id
+           LEFT JOIN daily_attendance_status das ON c.id = das.child_id AND das.attendance_date = ?
+           WHERE c.assigned_group IN (?)
+           AND (das.status IS NULL OR das.status NOT IN ('slot_given_up', 'waiting_list'))`,
+          [date, excludedGroups]
+        );
+        displacedChildren = displaced;
+      }
 
       if (schedules.length === 0) {
         // Create new
@@ -280,6 +301,85 @@ router.patch('/date/:date/capacity',
         );
       }
 
+      // Send push notifications to parents of displaced children
+      if (displacedChildren.length > 0) {
+        // Group children by parent to send personalized notifications
+        const childrenByParent = {};
+        displacedChildren.forEach(child => {
+          if (!childrenByParent[child.parent_id]) {
+            childrenByParent[child.parent_id] = [];
+          }
+          childrenByParent[child.parent_id].push(child.child_name);
+        });
+        
+        try {
+          // Fetch parent language preferences
+          const parentIds = Object.keys(childrenByParent);
+          const [parentLanguages] = await db.query(
+            'SELECT id, language FROM users WHERE id IN (?)',
+            [parentIds]
+          );
+          const languageMap = {};
+          parentLanguages.forEach(p => {
+            languageMap[p.id] = p.language || 'en';
+          });
+          
+          // Send personalized notification to each parent
+          for (const [parentId, childNames] of Object.entries(childrenByParent)) {
+            const language = languageMap[parentId] || 'en';
+            
+            // Format date according to user's language
+            const formattedDate = new Date(date).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-US', { 
+              month: 'short', 
+              day: 'numeric', 
+              year: 'numeric' 
+            });
+            
+            // Format child names with "and" (or "und" in German) before the last one
+            let childNamesList;
+            const andWord = language === 'de' ? 'und' : 'and';
+            if (childNames.length === 1) {
+              childNamesList = childNames[0];
+            } else if (childNames.length === 2) {
+              childNamesList = `${childNames[0]} ${andWord} ${childNames[1]}`;
+            } else {
+              childNamesList = `${childNames.slice(0, -1).join(', ')}, ${andWord} ${childNames[childNames.length - 1]}`;
+            }
+            
+            // Localized notification text
+            const title = language === 'de'
+              ? (childNames.length === 1 ? 'Betreuungsplatz verloren' : 'Betreuungsplätze verloren')
+              : (childNames.length === 1 ? 'Attendance Slot Lost' : 'Attendance Slots Lost');
+            
+            const lostText = language === 'de'
+              ? (childNames.length === 1 ? 'hat den Betreuungsplatz' : 'haben ihre Betreuungsplätze')
+              : (childNames.length === 1 ? 'has lost their attendance slot' : 'have lost their attendance slots');
+            
+            const reasonText = language === 'de'
+              ? 'aufgrund reduzierter Kapazität verloren.'
+              : 'due to reduced capacity.';
+            
+            const notificationPayload = {
+              title: title,
+              body: `${childNamesList} ${lostText} für ${language === 'de' ? 'den' : ''} ${formattedDate} ${reasonText}`,
+              icon: '/icon-192.png',
+              badge: '/icon-192.png',
+              url: `/?date=${date}`,
+              date: date,
+              tag: `capacity-reduction-${date}`,
+              requireInteraction: true
+            };
+            
+            await sendPushNotificationsToUsers([parseInt(parentId)], notificationPayload);
+          }
+          
+          console.log(`[Schedules] Sent slot loss notifications to ${Object.keys(childrenByParent).length} parent(s)`);
+        } catch (notificationError) {
+          console.error('[Schedules] Error sending push notifications:', notificationError);
+          // Don't fail the request if notifications fail
+        }
+      }
+
       // Process waiting list after capacity change
       // This handles automatic reassignment when capacity increases or groups change
       try {
@@ -294,7 +394,8 @@ router.patch('/date/:date/capacity',
             capacity_limit: capacityLimit,
             attending_groups: attendingGroups
           },
-          processing_results: processingResults
+          processing_results: processingResults,
+          notifications_sent: displacedChildren.length
         });
       } catch (processingError) {
         console.error('[Schedules] Waiting list processing error:', processingError);
@@ -307,7 +408,8 @@ router.patch('/date/:date/capacity',
             capacity_limit: capacityLimit,
             attending_groups: attendingGroups
           },
-          processing_error: 'Failed to process waiting list automatically'
+          processing_error: 'Failed to process waiting list automatically',
+          notifications_sent: displacedChildren.length
         });
       }
     } catch (error) {

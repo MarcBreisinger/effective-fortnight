@@ -22,7 +22,8 @@ import {
   AppBar,
   Toolbar,
   FormControlLabel,
-  Switch
+  Switch,
+  CircularProgress
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
@@ -32,10 +33,22 @@ import PersonIcon from '@mui/icons-material/Person';
 import LanguageIcon from '@mui/icons-material/Language';
 import LogoutIcon from '@mui/icons-material/Logout';
 import WarningIcon from '@mui/icons-material/Warning';
+import NotificationsIcon from '@mui/icons-material/Notifications';
+import NotificationsOffIcon from '@mui/icons-material/NotificationsOff';
 import { authAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getChildAvatarPath } from '../utils/animalAvatars';
+import {
+  isPushNotificationSupported,
+  isIOSSafari,
+  isInstalledPWA,
+  subscribeToPushNotifications,
+  unsubscribeFromPushNotifications,
+  checkSubscriptionStatus,
+  requestNotificationPermission,
+  getNotificationPermission
+} from '../services/notificationService';
 
 const ParentSettings = () => {
   const navigate = useNavigate();
@@ -51,6 +64,15 @@ const ParentSettings = () => {
     email: '',
     phone: '',
     showSlotOccupancy: false
+  });
+
+  // Push notification state
+  const [pushNotifications, setPushNotifications] = useState({
+    supported: false,
+    permission: 'default',
+    subscribed: false,
+    loading: false,
+    iosPrompt: false
   });
 
   // Children state
@@ -85,8 +107,33 @@ const ParentSettings = () => {
         showSlotOccupancy: user.showSlotOccupancy || false
       });
       fetchUserData();
+      checkPushNotificationStatus();
     }
   }, [user]);
+
+  const checkPushNotificationStatus = async () => {
+    const supported = isPushNotificationSupported();
+    const permission = getNotificationPermission();
+    
+    if (supported && permission === 'granted') {
+      const subscribed = await checkSubscriptionStatus();
+      setPushNotifications({
+        supported,
+        permission,
+        subscribed,
+        loading: false,
+        iosPrompt: isIOSSafari() && !isInstalledPWA()
+      });
+    } else {
+      setPushNotifications({
+        supported,
+        permission,
+        subscribed: false,
+        loading: false,
+        iosPrompt: isIOSSafari() && !isInstalledPWA()
+      });
+    }
+  };
 
   const fetchUserData = async () => {
     try {
@@ -311,6 +358,57 @@ const ParentSettings = () => {
     }
   };
 
+  const handleTogglePushNotifications = async () => {
+    if (!pushNotifications.supported) {
+      setMessage({ type: 'error', text: t('pushNotificationsNotSupported') });
+      return;
+    }
+
+    if (pushNotifications.iosPrompt) {
+      setMessage({ type: 'info', text: t('pushNotificationsIOSInstructions') });
+      return;
+    }
+
+    setPushNotifications(prev => ({ ...prev, loading: true }));
+
+    try {
+      if (pushNotifications.subscribed) {
+        // Unsubscribe
+        await unsubscribeFromPushNotifications(localStorage.getItem('token'));
+        setPushNotifications(prev => ({
+          ...prev,
+          subscribed: false,
+          loading: false
+        }));
+        setMessage({ type: 'success', text: t('pushNotificationsDisabled') });
+      } else {
+        // Check and request permission if needed
+        if (pushNotifications.permission !== 'granted') {
+          const granted = await requestNotificationPermission();
+          if (!granted) {
+            setPushNotifications(prev => ({ ...prev, loading: false }));
+            setMessage({ type: 'error', text: t('pushNotificationsPermissionDenied') });
+            return;
+          }
+        }
+
+        // Subscribe
+        await subscribeToPushNotifications(localStorage.getItem('token'));
+        setPushNotifications(prev => ({
+          ...prev,
+          subscribed: true,
+          permission: 'granted',
+          loading: false
+        }));
+        setMessage({ type: 'success', text: t('pushNotificationsEnabled') });
+      }
+    } catch (error) {
+      console.error('Error toggling push notifications:', error);
+      setPushNotifications(prev => ({ ...prev, loading: false }));
+      setMessage({ type: 'error', text: t('pushNotificationsError') });
+    }
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -404,6 +502,49 @@ const ParentSettings = () => {
             <Typography variant="body2" color="text.secondary" sx={{ ml: 4, mt: 0.5 }}>
               {t('showSlotOccupancyHelp')}
             </Typography>
+            
+            <Divider sx={{ my: 3 }} />
+            
+            <Typography variant="subtitle1" gutterBottom sx={{ mt: 2, mb: 1 }}>
+              {t('pushNotifications')}
+            </Typography>
+            
+            {!pushNotifications.supported && (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                {t('pushNotificationsNotSupported')}
+              </Alert>
+            )}
+            
+            {pushNotifications.iosPrompt && (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                {t('pushNotificationsIOSInstructions')}
+              </Alert>
+            )}
+            
+            {pushNotifications.supported && !pushNotifications.iosPrompt && (
+              <>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={pushNotifications.subscribed}
+                      onChange={handleTogglePushNotifications}
+                      disabled={pushNotifications.loading}
+                      color="primary"
+                    />
+                  }
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {pushNotifications.subscribed ? <NotificationsIcon /> : <NotificationsOffIcon />}
+                      <span>{t('enablePushNotifications')}</span>
+                      {pushNotifications.loading && <CircularProgress size={16} />}
+                    </Box>
+                  }
+                />
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 4, mt: 0.5 }}>
+                  {t('pushNotificationsHelp')}
+                </Typography>
+              </>
+            )}
             
             <Divider sx={{ my: 3 }} />
             

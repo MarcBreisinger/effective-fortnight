@@ -1,6 +1,8 @@
 # Business Logic Test Scenarios
 
-This document outlines complete test scenarios for the day-care rotation system's capacity management and waiting list functionality.
+This document outlines manual end-to-end test scenarios for the day-care rotation system. These tests verify business logic flows that are not covered by automated unit tests.
+
+> **Note**: Basic validation (authentication, authorization, date validation, urgency levels) is covered by automated tests in `backend/__tests__/`. This document focuses on complex multi-step workflows and integration scenarios.
 
 ## Test Setup
 
@@ -20,32 +22,15 @@ Group D: Child D1, D2, D3, ... (up to 12 children)
 
 ---
 
-## Scenario 1: Full Capacity - Normal Operation
+## Core Test Scenarios
 
-### Test 1.1: Child Can Attend
-**Initial State:**
-- Capacity: 4 groups
-- Attending groups: A, B, C, D
-- Child A1: No status entry in database
-
-**Action:** Parent views schedule
-
-**Expected Result:**
-- ✅ Status box shows "Child A1 can attend today"
-- ✅ No entry in `daily_attendance_status` table
-- ✅ Child appears in Group A list (not additionally attending, not waiting list)
-
-**Verification Query:**
-```sql
-SELECT * FROM daily_attendance_status WHERE child_id = 1 AND attendance_date = 2025-11-27;
--- Should return 0 rows
-```
+> Focus on these end-to-end workflows that involve multiple components and state changes.
 
 ---
 
-## Scenario 2: Capacity Reduction - Slot Loss
+## Scenario 1: Capacity Reduction - Slot Loss & Waiting List
 
-### Test 2.1: Child Loses Slot When Capacity Reduced
+### Test 1.1: Complete Capacity Reduction Flow
 **Initial State:**
 - Capacity: 4 groups  
 - Attending groups: A, B, C, D
@@ -161,8 +146,11 @@ WHERE child_id = ? AND attendance_date = ?;
 
 **Note:** Removing from waiting list is different from giving up a day care slot. The child was never attending, so there's no slot to free for others. The status should simply be cleared.
 
-### Test 2.1.2: Child Doesn't Need Slot - No Action Taken
-**Initial State:**
+---
+
+## Scenario 2: Slot Give-Up with Waiting List Processing
+
+### Test 2.1: Child Gives Up Slot - Triggering Cascade
 - Capacity: 3 groups (A, B, C attending)
 - Group D excluded from attending
 - Child D1: No status (group not attending)
@@ -189,42 +177,9 @@ WHERE child_id = ? AND attendance_date = ?;
 
 ---
 
-## Scenario 3: Capacity Increase - Automatic Reassignment
+## Scenario 3: Capacity Increase - Waiting List Auto-Processing
 
-### Test 3.1: Child on Waiting List, Group Becomes Available
-
-#### Test 3.1.1: Automatic Regular Slot Assignment
-**Initial State:**
-- Capacity: 3 groups (A, B, C attending)
-- Child D1: Status `'waiting_list'`, timestamp 10:00
-- Child D2: Status `'waiting_list'`, timestamp 10:05
-
-**Action:** Staff increases capacity to 4
-
-**Expected Result:**
-- ✅ **Automatic Processing:** System detects Group D is now attending
-- ✅ Child D1 status **deleted** (returns to default)
-- ✅ Child D2 status **deleted** (returns to default)
-- ✅ Both children receive regular slots in Group D
-- ✅ Children removed from waiting list
-- ✅ Children appear in Group D list (not additionally attending)
-
-**Verification Query:**
-```sql
-SELECT * FROM daily_attendance_status 
-WHERE child_id IN (?,?) AND attendance_date = ?;
--- Should return 0 rows (statuses deleted)
-
-GET /api/schedules/date/:date/children
--- Verify D1 and D2 appear in Group D's children list
--- Verify attendance_status is null or 'attending' (default)
-```
-
-**Note:** This test demonstrates that when a group becomes available, ALL waiting list children from that group are automatically restored to regular slots, not just some of them.
-
-### Test 3.1.2: Group Still Not Attending - General Capacity Available
-
-#### Test 3.1.2.1: Own Group Becomes Available - Priority Restoration
+### Test 3.1: Own Group Becomes Available - Priority Restoration
 **Initial State:**
 - Capacity: 2 groups (A, B attending)
 - Both groups at full capacity (12/12 children each)
@@ -324,49 +279,7 @@ GET /api/schedules/date/:date/children
 
 ---
 
-## API Endpoint Tests
-
-### Test: GET /api/schedules/date/:date/children
-**Verify correct categorization:**
-```json
-{
-  "groups": [
-    {
-      "group": "A",
-      "canAttend": true,
-      "children": [
-        {"id": 1, "name": "Child A1", "attendance_status": null}
-      ]
-    }
-  ],
-  "additionally_attending": [
-    {"id": 5, "name": "Child D1", "assigned_group": "D"}
-  ],
-  "waiting_list": [
-    {"id": 6, "name": "Child D2", "assigned_group": "D"}
-  ]
-}
-```
-
-### Test: PATCH /api/schedules/date/:date/capacity
-**Verify processing results returned:**
-```json
-{
-  "message": "Capacity updated successfully",
-  "processing_results": {
-    "reassignedToRegularSlots": [
-      {"child_id": 5, "child_name": "Child D1", "group": "D"}
-    ],
-    "assignedFromWaitingList": [
-      {"child_id": 6, "child_name": "Child C1", "group": "C"}
-    ]
-  }
-}
-```
-
----
-
-## Scenario 4: Parent Gives Up "Additionally Attending" Slot
+## Scenario 4: Parent Gives Up Slot - Cascading Assignment
 
 ### Test 4.1: Give Up Additional Slot - Waiting List Processing
 **Initial State:**
@@ -513,67 +426,9 @@ WHERE child_id = ? AND attendance_date = ?;
 
 ---
 
-## Scenario 6: Staff Changes Rotation Order
+## Scenario 5: Multi-Child Parent - Mixed States
 
-### Test 6.1: Rotation Change Affects Attending Groups
-**Initial State:**
-- Order: A, B, C, D
-- Capacity: 3 groups (A, B, C attending)
-- All attending groups at 12/12 capacity
-- Child D1: Status `'waiting_list'`
-- Child D2: Status `'attending'` (additionally attending - from Group D which is not attending)
-
-**Action:** Staff changes rotation to D, A, B, C (Group D now prioritized)
-
-**Expected Result:**
-- ✅ Attending groups change to: D, A, B
-- ✅ **Automatic Processing:** System processes waiting list
-- ✅ Child D1 restored to Group D regular slot (status **deleted**)
-- ✅ Child D2 restored to Group D regular slot (status **deleted**)
-- ✅ Group C excluded - children from Group C may be affected
-- ✅ Children with 'attending' status from non-attending groups need to be re-evaluated
-
-**Verification Query:**
-```sql
-SELECT attending_groups FROM daily_schedules WHERE schedule_date = ?;
--- Should return: ["D","A","B"]
-
-SELECT * FROM daily_attendance_status 
-WHERE child_id IN (?, ?) AND attendance_date = ?;
--- D1: should return 0 rows (restored to regular slot)
--- D2: should return 0 rows (restored to regular slot)
-```
-
-### Test 6.2: Rotation Change with Full Processing
-**Initial State:**
-- Order: A, B, C, D
-- Capacity: 2 (A, B attending)
-- Both groups at 12/12 capacity
-- Child C1: Status `'waiting_list'`, timestamp 10:00
-- Child D1: Status `'waiting_list'`, timestamp 10:05
-
-**Action:** Staff changes rotation to C, D, A, B
-
-**Expected Result:**
-- ✅ Attending groups: C, D (first 2 in new order)
-- ✅ **Automatic Processing:**
-  - C1 restored to Group C regular slot (status deleted)
-  - D1 restored to Group D regular slot (status deleted)
-- ✅ Both removed from waiting list
-- ✅ Children from Groups A, B may lose slots
-
-**Verification Query:**
-```sql
-SELECT * FROM daily_attendance_status 
-WHERE child_id IN (?, ?) AND attendance_date = ?;
--- Should return 0 rows for both (restored to regular slots)
-```
-
----
-
-## Scenario 7: Parent with Multiple Children
-
-### Test 7.1: Multiple Children - Different States
+### Test 5.1: Multiple Children - Different States
 **Initial State:**
 - Capacity: 3 groups (A, B, C attending)
 - All attending groups at 12/12 capacity
@@ -602,7 +457,7 @@ WHERE ucl.user_id = ?;
 -- Should show all 3 children with their respective statuses
 ```
 
-### Test 7.2: Multiple Children - Simultaneous Actions
+### Test 5.2: FIFO Ordering for Siblings
 **Initial State:**
 - Parent linked to Child B1 and C1
 - Both have no status (attending normally)
@@ -624,7 +479,7 @@ WHERE child_id IN (?, ?) AND attendance_date = ?;
 -- C1: should return 0 rows
 ```
 
-### Test 7.3: Cascade Effect on Siblings
+### Test 5.2: FIFO Ordering for Siblings
 **Initial State:**
 - Parent has Child D1 and D2 (same group)
 - Both on `'waiting_list'`, D1 timestamp 10:00, D2 timestamp 10:10
@@ -649,69 +504,9 @@ ORDER BY updated_at;
 
 ---
 
-## Edge Cases to Test
+## Scenario 6: Parent Account and Child Management
 
-### Edge Case 1: Multiple Children from Same Group on Waiting List
-**Scenario:** Group D has 3 children on waiting list. Capacity increases to include Group D.
-
-**Expected:** All 3 children should be restored to Group D (if capacity allows).
-
-### Edge Case 2: Waiting List Exceeds Available Capacity
-**Scenario:** 5 children on waiting list, only 2 slots available.
-
-**Expected:** First 2 children (by timestamp) get slots, rest remain waiting.
-
-### Edge Case 3: Group at Exact Capacity Limit
-**Scenario:** Group A has exactly 12 children attending.
-
-**Expected:** New requests go to waiting list or other groups.
-
-### Edge Case 4: All Groups at Capacity
-**Scenario:** All attending groups have 12/12 children.
-
-**Expected:** All new requests go to waiting list, no auto-assignment.
-
-### Edge Case 5: Rapid Status Changes
-**Scenario:** Parent gives up slot, joins waiting list, gives up again within seconds.
-
-**Expected:** System handles race conditions, maintains data integrity.
-
----
-
-## Performance Tests
-
-### Load Test 1: 100 Children on Waiting List
-- Process capacity increase from 1 → 4 groups
-- Measure time to process entire queue
-- Target: < 5 seconds
-
-### Load Test 2: Multiple Concurrent Status Changes
-- 10 parents simultaneously give up slots
-- 20 parents simultaneously join waiting list
-- Verify correct queue ordering
-
----
-
-## Regression Tests
-
-After implementing automatic processing, verify these still work:
-
-1. ✅ Parent can manually give up slot
-2. ✅ Parent can manually join waiting list
-3. ✅ Staff can change capacity via slider
-4. ✅ Staff can change rotation order
-5. ✅ Group lists display correctly
-6. ✅ Capacity counters accurate
-7. ✅ Notifications show correctly
-8. ✅ Date navigation works
-9. ✅ Real-time updates via polling work
-10. ✅ Authentication and authorization enforced
-
----
-
-## Scenario 8: Parent Child Account Management
-
-### Test 8.1: Remove Non-Last Child from Account
+### Test 6.1: Remove Non-Last Child from Account
 **Initial State:**
 - Parent account with 2 children linked
   - Child A1 (ID: 1) - Group A
@@ -757,7 +552,7 @@ curl -X DELETE https://daycare.marcb.uber.space/api/auth/unlink-child/2 \
 }
 ```
 
-### Test 8.2: Remove Last Child - Account Deletion
+### Test 6.2: Remove Last Child - Account Deletion
 **Initial State:**
 - Parent account with 1 child linked
   - Child A1 (ID: 1) - Group A
@@ -816,7 +611,7 @@ curl -X DELETE https://daycare.marcb.uber.space/api/auth/delete-account \
 }
 ```
 
-### Test 8.3: Registration Code Remains Valid After Removal
+### Test 6.3: Registration Code Remains Valid After Removal
 **Initial State:**
 - Child A1 has registration_code: "ABC123XYZ"
 - Parent1 removed Child A1 from their account
@@ -842,7 +637,7 @@ SELECT registration_code FROM children WHERE id = 1;
 -- Should return "ABC123XYZ" (unchanged)
 ```
 
-### Test 8.4: Multiple Parents Can Link Same Child
+### Test 6.4: Multiple Parents Can Link Same Child
 **Initial State:**
 - Child A1 has registration_code: "ABC123XYZ"
 - Parent1 already linked to Child A1
@@ -912,135 +707,22 @@ curl -X DELETE https://daycare.marcb.uber.space/api/auth/delete-account \
 }
 ```
 
-### Test 8.7: Dialog Cancel - No Changes
-**Initial State:**
-- Parent has 1 child (Child A1)
-- Parent clicks delete icon
-
-**Action:** Parent clicks "Cancel" in confirmation dialog
-
-**Expected Result:**
-- ✅ Dialog closes
-- ✅ No API calls made
-- ✅ No database changes
-- ✅ Child remains linked to parent
-- ✅ Parent stays logged in
-- ✅ No error or success messages
-
-### Test 8.8: Network Error Handling
-**Initial State:**
-- Parent has 2 children
-- Network connection interrupted
-
-**Action:** Parent attempts to remove child, API call fails
-
-**Expected Result:**
-- ✅ Error message displayed: "Failed to remove child from account"
-- ✅ Dialog remains open
-- ✅ Parent can retry
-- ✅ No partial state changes
-- ✅ Database unchanged
-
-### Test 8.9: Translation Support
-**Initial State:**
-- Parent viewing settings in German (language: 'de')
-
-**Action:** Parent opens remove child dialog
-
-**Expected Result:**
-- ✅ All dialog text in German:
-  - Title: "Kind aus Konto entfernen?"
-  - Warning: "Möchten Sie # wirklich aus Ihrem Konto entfernen?"
-  - Consequences: "Wichtige Konsequenzen:"
-  - Account deletion: "Ihr Konto wird dauerhaft gelöscht"
-  - Logout: "Sie werden sofort abgemeldet"
-  - Note: "Hinweis: Das Kind bleibt im Kita-System erhalten..."
-- ✅ Buttons translated: "Abbrechen", "Kind entfernen"
-
-### Test 8.10: UI State Updates After Removal
-**Initial State:**
-- Parent has 3 children: A1, B1, C1
-- Parent viewing ParentSettings page
-
-**Action:** Parent removes Child B1 (middle child)
-
-**Expected Result:**
-- ✅ Dialog closes after successful removal
-- ✅ Children list immediately updates
-- ✅ Only A1 and C1 visible in list
-- ✅ Success message displayed
-- ✅ No page reload required
-- ✅ User context updated (global state)
-- ✅ Other pages immediately reflect change
-
-**Frontend Verification:**
-```javascript
-// Before removal
-user.children.length === 3
-
-// After removal
-user.children.length === 2
-user.children.find(c => c.id === 2) === undefined
-```
-
-### Test 8.11: Concurrent Parent Removal
-**Initial State:**
-- Child A1 linked to Parent1 and Parent2
-- Both parents viewing settings simultaneously
-
-**Action:** Both parents click remove child at same time
-
-**Expected Result:**
-- ✅ First request succeeds - removes Parent1's link
-- ✅ Second request succeeds - removes Parent2's link
-- ✅ Child A1 remains in system with no parent links
-- ✅ Both parents receive success messages
-- ✅ No database integrity errors
-- ✅ Child can be linked again with registration code
-
-**Verification Query:**
-```sql
--- After both removals
-SELECT * FROM user_child_links WHERE child_id = 1;
--- Should return 0 rows
-
-SELECT * FROM children WHERE id = 1;
--- Should return 1 row (child still exists)
-```
-
 ---
 
-## Child Account Management - Edge Cases
+## Test Coverage Summary
 
-### Edge Case 9.1: Remove Child Who Is Currently Attending
-**Scenario:** Parent removes child who is currently in "additionally attending" status for today.
+### ✅ Covered by Automated Tests (backend/__tests__/)
+- **Authentication**: Registration, login, password reset validation
+- **Authorization**: JWT middleware, role-based access
+- **Date Validation**: Past date protection, date format checks
+- **Query Structure**: Urgency levels, FIFO ordering SQL structure
+- **Input Validation**: Required fields, format checks, boundary conditions
 
-**Expected:** 
-- Link removed from account
-- Attendance status for today remains unchanged in `daily_attendance_status`
-- Other parents can still see child in schedule if they share the child
+### 📋 Requires Manual End-to-End Testing
+- **Scenario 1-4**: Capacity changes with cascading slot assignments and waiting list processing
+- **Scenario 5**: Multi-child parents with mixed attendance states
+- **Scenario 6**: Account deletion workflows with UI state updates
+- **Integration Flows**: Push notifications, language switching, real-time updates
 
-### Edge Case 9.2: Remove Child with Future Attendance Records
-**Scenario:** Parent removes child who has waiting list entries for future dates.
+The manual tests in this document focus on complex business logic flows that span multiple components and require UI verification.
 
-**Expected:**
-- Link removed from account
-- Future attendance records remain in system
-- If child is re-linked to another parent, those records are still valid
-
-### Edge Case 9.3: Delete Account During Active Session
-**Scenario:** Parent has multiple browser tabs open, deletes account in one tab.
-
-**Expected:**
-- Account deleted, JWT invalidated
-- Other tabs show "Unauthorized" on next API call
-- Clean error handling, redirect to login
-
-### Edge Case 9.4: Remove Last Child - Account Has Other Data
-**Scenario:** Parent has profile preferences, language settings, and activity log entries.
-
-**Expected:**
-- Account fully deleted (cascade delete or explicit cleanup)
-- User preferences removed
-- Activity log entries either deleted or anonymized
-- No orphaned data in database
