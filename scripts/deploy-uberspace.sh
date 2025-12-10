@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # Deployment script for Uberspace
-# This script helps deploy the day-care rotation system to Uberspace
+# This script helps deploy Kitana to Uberspace
 
 set -e  # Exit on any error
 
 echo "========================================="
-echo "Day-Care Rotation System - Uberspace Deployment"
+echo "Kitana - Uberspace Deployment"
 echo "========================================="
 echo ""
 

@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { sendPushNotificationsToUsers } = require('./pushNotificationService');
 
 /**
  * Get the capacity for a specific group based on actual children assigned
@@ -265,6 +266,125 @@ async function processWaitingList(date, attendingGroups) {
       clearedStatuses: results.clearedStatuses.length
     });
 
+    // Send push notifications for slot assignments
+    console.log('[WaitingListProcessor] Notification condition check:', {
+      assignedFromWaitingList: results.assignedFromWaitingList.length,
+      reassignedToRegularSlots: results.reassignedToRegularSlots.length,
+      willSendNotifications: (results.assignedFromWaitingList.length > 0 || results.reassignedToRegularSlots.length > 0)
+    });
+    
+    if (results.assignedFromWaitingList.length > 0 || results.reassignedToRegularSlots.length > 0) {
+      try {
+        console.log('[WaitingListProcessor] ENTERING NOTIFICATION BLOCK');
+        
+        const allAssignedChildren = [
+          ...results.assignedFromWaitingList,
+          ...results.reassignedToRegularSlots
+        ];
+        
+        console.log('[WaitingListProcessor] All assigned children:', allAssignedChildren);
+
+        // Group children by parent
+        const childIds = allAssignedChildren.map(c => c.child_id);
+        console.log('[WaitingListProcessor] Looking up parents for child IDs:', childIds);
+        
+        const [parentLinks] = await db.query(
+          `SELECT ucl.user_id as parent_id, c.id as child_id, c.name as child_name
+           FROM user_child_links ucl
+           JOIN children c ON ucl.child_id = c.id
+           WHERE c.id IN (?)`,
+          [childIds]
+        );
+        
+        console.log('[WaitingListProcessor] Parent links found:', parentLinks);
+
+        const childrenByParent = {};
+        parentLinks.forEach(link => {
+          if (!childrenByParent[link.parent_id]) {
+            childrenByParent[link.parent_id] = [];
+          }
+          childrenByParent[link.parent_id].push(link.child_name);
+        });
+
+        // Fetch parent language preferences
+        const parentIds = Object.keys(childrenByParent);
+        
+        // Guard against empty parentIds array (would cause SQL error with IN ())
+        if (parentIds.length === 0) {
+          console.log('[WaitingListProcessor] No parent links found for assigned children - skipping notifications');
+          return results;
+        }
+        
+        const [parentLanguages] = await db.query(
+          'SELECT id, language FROM users WHERE id IN (?)',
+          [parentIds]
+        );
+        const languageMap = {};
+        parentLanguages.forEach(p => {
+          languageMap[p.id] = p.language || 'en';
+        });
+
+        // Send personalized notification to each parent
+        console.log('[WaitingListProcessor] Grouped children by parent:', childrenByParent);
+        console.log('[WaitingListProcessor] Preparing to send notifications to', Object.keys(childrenByParent).length, 'parent(s)');
+        
+        for (const [parentId, childNames] of Object.entries(childrenByParent)) {
+          const language = languageMap[parentId] || 'en';
+          console.log(`[WaitingListProcessor] Preparing notification for parent ${parentId} in ${language}:`, childNames);
+          
+          // Format date according to user's language
+          const formattedDate = new Date(date).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-US', { 
+            month: 'short', 
+            day: 'numeric', 
+            year: 'numeric' 
+          });
+          
+          // Format child names with "and" (or "und" in German) before the last one
+          let childNamesList;
+          const andWord = language === 'de' ? 'und' : 'and';
+          if (childNames.length === 1) {
+            childNamesList = childNames[0];
+          } else if (childNames.length === 2) {
+            childNamesList = `${childNames[0]} ${andWord} ${childNames[1]}`;
+          } else {
+            childNamesList = `${childNames.slice(0, -1).join(', ')}, ${andWord} ${childNames[childNames.length - 1]}`;
+          }
+          
+          // Localized notification text
+          const title = language === 'de'
+            ? (childNames.length === 1 ? 'Platz zugewiesen' : 'Plätze zugewiesen')
+            : (childNames.length === 1 ? 'Slot Assigned' : 'Slots Assigned');
+          
+          const assignedText = language === 'de'
+            ? (childNames.length === 1 ? 'wurde ein Betreuungsplatz' : 'wurden Betreuungsplätze')
+            : (childNames.length === 1 ? 'has been assigned a slot' : 'have been assigned slots');
+          
+          const forText = language === 'de' ? 'für den' : 'for';
+          
+          const notificationPayload = {
+            title: title,
+            body: `${childNamesList} ${assignedText} ${forText} ${formattedDate}.`,
+            icon: '/icon-192.png',
+            badge: '/icon-192.png',
+            url: `/?date=${date}`,
+            date: date,
+            tag: `slot-assigned-${date}`,
+            requireInteraction: true,
+            event: 'slot_assigned'
+          };
+          
+          console.log(`[WaitingListProcessor] Sending notification to parent ${parentId}:`, notificationPayload);
+          await sendPushNotificationsToUsers([parseInt(parentId)], notificationPayload);
+          console.log(`[WaitingListProcessor] Notification sent successfully to parent ${parentId}`);
+        }
+        
+        console.log(`[WaitingListProcessor] Sent slot assignment notifications to ${Object.keys(childrenByParent).length} parent(s)`);
+      } catch (notificationError) {
+        console.error('[WaitingListProcessor] Error sending push notifications:', notificationError);
+        // Don't fail the request if notifications fail
+      }
+    }
+
     return results;
   } catch (error) {
     console.error('[WaitingListProcessor] Error processing waiting list:', error);
@@ -363,8 +483,73 @@ async function processSlotGiveUp(date, groupThatFreedUp, attendingGroups, childI
           child_id: child.child_id,
           child_name: child.child_name,
           group: child.assigned_group,
-          type: 'regular_slot'
+          assigned_to_group: child.assigned_group
         });
+
+        // Send push notification for slot assignment
+        try {
+          console.log(`[WaitingListProcessor] processSlotGiveUp/regularSlot - Preparing notification for child ${child.child_id}`);
+          const [parentLinks] = await db.query(
+            `SELECT ucl.user_id as parent_id, c.id as child_id, c.name as child_name
+             FROM user_child_links ucl
+             JOIN children c ON ucl.child_id = c.id
+             WHERE c.id = ?`,
+            [child.child_id]
+          );
+
+          console.log(`[WaitingListProcessor] processSlotGiveUp/regularSlot - Found ${parentLinks.length} parent link(s)`);
+
+          if (parentLinks.length > 0) {
+            // Get parent language preferences
+            const parentIds = parentLinks.map(link => link.parent_id);
+            const [parentLanguages] = await db.query(
+              'SELECT id, language FROM users WHERE id IN (?)',
+              [parentIds]
+            );
+            const languageMap = {};
+            parentLanguages.forEach(p => {
+              languageMap[p.id] = p.language || 'en';
+            });
+
+            // Send notification to each parent
+            for (const link of parentLinks) {
+              const language = languageMap[link.parent_id] || 'en';
+              
+              // Format date according to user's language
+              const formattedDate = new Date(date).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-US', { 
+                month: 'short', 
+                day: 'numeric', 
+                year: 'numeric' 
+              });
+              
+              // Localized notification text
+              const title = language === 'de' ? 'Platz zugewiesen' : 'Slot Assigned';
+              const assignedText = language === 'de' ? 'wurde ein Betreuungsplatz' : 'has been assigned a slot';
+              const forText = language === 'de' ? 'für den' : 'for';
+              
+              const notificationPayload = {
+                title: title,
+                body: `${child.child_name} ${assignedText} ${forText} ${formattedDate}.`,
+                icon: '/icon-192.png',
+                badge: '/icon-192.png',
+                url: `/?date=${date}`,
+                date: date,
+                tag: `slot-assigned-${date}`,
+                requireInteraction: true,
+                event: 'slot_assigned'
+              };
+              
+              console.log(`[WaitingListProcessor] Sending notification to parent ${link.parent_id} for regular slot restoration`);
+              await sendPushNotificationsToUsers([parseInt(link.parent_id)], notificationPayload);
+              console.log(`[WaitingListProcessor] Notification sent successfully to parent ${link.parent_id}`);
+            }
+          } else {
+            console.log(`[WaitingListProcessor] No parent links found for child ${child.child_id}`);
+          }
+        } catch (notificationError) {
+          console.error('[WaitingListProcessor] Error sending push notification for regular slot restoration:', notificationError);
+          // Don't fail the request if notification fails
+        }
 
         return results;
       }
@@ -446,8 +631,73 @@ async function processSlotGiveUp(date, groupThatFreedUp, attendingGroups, childI
       child_id: child.child_id,
       child_name: child.child_name,
       group: child.assigned_group,
-      type: 'additional_slot'
+      assigned_to_group: groupThatFreedUp
     });
+
+    // Send push notification for slot assignment
+    try {
+      console.log(`[WaitingListProcessor] processSlotGiveUp - Preparing notification for child ${child.child_id}`);
+      const [parentLinks] = await db.query(
+        `SELECT ucl.user_id as parent_id, c.id as child_id, c.name as child_name
+         FROM user_child_links ucl
+         JOIN children c ON ucl.child_id = c.id
+         WHERE c.id = ?`,
+        [child.child_id]
+      );
+
+      console.log(`[WaitingListProcessor] processSlotGiveUp - Found ${parentLinks.length} parent link(s)`);
+
+      if (parentLinks.length > 0) {
+        // Get parent language preferences
+        const parentIds = parentLinks.map(link => link.parent_id);
+        const [parentLanguages] = await db.query(
+          'SELECT id, language FROM users WHERE id IN (?)',
+          [parentIds]
+        );
+        const languageMap = {};
+        parentLanguages.forEach(p => {
+          languageMap[p.id] = p.language || 'en';
+        });
+
+        // Send notification to each parent
+        for (const link of parentLinks) {
+          const language = languageMap[link.parent_id] || 'en';
+          
+          // Format date according to user's language
+          const formattedDate = new Date(date).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-US', { 
+            month: 'short', 
+            day: 'numeric', 
+            year: 'numeric' 
+          });
+          
+          // Localized notification text
+          const title = language === 'de' ? 'Platz zugewiesen' : 'Slot Assigned';
+          const assignedText = language === 'de' ? 'wurde ein Betreuungsplatz' : 'has been assigned a slot';
+          const forText = language === 'de' ? 'für den' : 'for';
+          
+          const notificationPayload = {
+            title: title,
+            body: `${child.child_name} ${assignedText} ${forText} ${formattedDate}.`,
+            icon: '/icon-192.png',
+            badge: '/icon-192.png',
+            url: `/?date=${date}`,
+            date: date,
+            tag: `slot-assigned-${date}`,
+            requireInteraction: true,
+            event: 'slot_assigned'
+          };
+          
+          console.log(`[WaitingListProcessor] Sending notification to parent ${link.parent_id} for slot give-up assignment`);
+          await sendPushNotificationsToUsers([parseInt(link.parent_id)], notificationPayload);
+          console.log(`[WaitingListProcessor] Notification sent successfully to parent ${link.parent_id}`);
+        }
+      } else {
+        console.log(`[WaitingListProcessor] No parent links found for child ${child.child_id}`);
+      }
+    } catch (notificationError) {
+      console.error('[WaitingListProcessor] Error sending push notification for slot give-up:', notificationError);
+      // Don't fail the request if notification fails
+    }
 
     return results;
   } catch (error) {

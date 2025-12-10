@@ -79,7 +79,7 @@ async function sendPushNotificationsToUsers(userIds, payload) {
 
   // Fetch all subscriptions for these users
   const [subscriptions] = await db.query(
-    `SELECT id, user_id, endpoint, p256dh_key, auth_key 
+    `SELECT id, user_id, endpoint, p256dh_key, auth_key, preferences 
      FROM push_subscriptions 
      WHERE user_id IN (?)`,
     [userIds]
@@ -90,11 +90,51 @@ async function sendPushNotificationsToUsers(userIds, payload) {
     return { success: 0, failed: 0, total: 0 };
   }
 
-  console.log(`[Push] Sending notifications to ${subscriptions.length} subscription(s)`);
+  // Filter subscriptions based on user preferences and event type
+  const eventType = payload.event; // e.g., 'slot_lost', 'slot_assigned'
+  console.log(`[Push] Processing event type: ${eventType}`);
+  
+  const filteredSubscriptions = subscriptions.filter(sub => {
+    if (!eventType) {
+      // If no event type specified, send to all (backward compatibility)
+      console.log(`[Push] No event type specified, sending to user ${sub.user_id}`);
+      return true;
+    }
+
+    // Parse preferences (stored as JSON)
+    let preferences = { slot_lost: true, slot_assigned: true }; // Default: all enabled
+    if (sub.preferences) {
+      try {
+        preferences = typeof sub.preferences === 'string' 
+          ? JSON.parse(sub.preferences) 
+          : sub.preferences;
+        console.log(`[Push] User ${sub.user_id} preferences:`, preferences);
+      } catch (e) {
+        console.error('[Push] Error parsing preferences for subscription:', sub.id, e);
+      }
+    } else {
+      console.log(`[Push] User ${sub.user_id} has no preferences set, using defaults:`, preferences);
+    }
+
+    // Check if user wants this type of notification
+    const wantsNotification = preferences[eventType] !== false;
+    console.log(`[Push] User ${sub.user_id} wants ${eventType}:`, wantsNotification);
+    if (!wantsNotification) {
+      console.log(`[Push] User ${sub.user_id} has disabled ${eventType} notifications, skipping`);
+    }
+    return wantsNotification;
+  });
+
+  if (filteredSubscriptions.length === 0) {
+    console.log('[Push] No subscriptions with enabled preferences for event:', eventType);
+    return { success: 0, failed: 0, total: 0, filtered: subscriptions.length };
+  }
+
+  console.log(`[Push] Sending notifications to ${filteredSubscriptions.length} subscription(s) (${subscriptions.length - filteredSubscriptions.length} filtered by preferences)`);
 
   // Send notifications to all subscriptions in parallel
   const results = await Promise.allSettled(
-    subscriptions.map(sub => {
+    filteredSubscriptions.map(sub => {
       const pushSubscription = {
         endpoint: sub.endpoint,
         keys: {
@@ -110,7 +150,8 @@ async function sendPushNotificationsToUsers(userIds, payload) {
   const summary = {
     success: results.filter(r => r.status === 'fulfilled' && r.value === true).length,
     failed: results.filter(r => r.status === 'rejected' || r.value === false).length,
-    total: results.length
+    total: results.length,
+    filtered: subscriptions.length - filteredSubscriptions.length
   };
 
   console.log('[Push] Notification results:', summary);
@@ -157,13 +198,14 @@ async function saveSubscription(userId, subscription) {
       );
       console.log('[Push] Updated existing subscription for user:', userId);
     } else {
-      // Insert new subscription
+      // Insert new subscription with default preferences
+      const defaultPreferences = JSON.stringify({ slot_lost: true, slot_assigned: true });
       await db.query(
-        `INSERT INTO push_subscriptions (user_id, endpoint, p256dh_key, auth_key)
-         VALUES (?, ?, ?, ?)`,
-        [userId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]
+        `INSERT INTO push_subscriptions (user_id, endpoint, p256dh_key, auth_key, preferences)
+         VALUES (?, ?, ?, ?, ?)`,
+        [userId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth, defaultPreferences]
       );
-      console.log('[Push] Saved new subscription for user:', userId);
+      console.log('[Push] Saved new subscription for user:', userId, 'with default preferences');
     }
     
     return true;

@@ -1,6 +1,6 @@
 # Deployment Scripts
 
-This directory contains scripts for deploying and managing the day-care rotation system.
+This directory contains scripts for deploying and managing Kitana.
 
 ## Active Scripts
 

@@ -1,7 +1,7 @@
-# Copilot Instructions for Day-Care Rotation System
+# Copilot Instructions for Kitana
 
 ## Project Overview
-A web application for visualizing and managing day-care rotation schedules. The system tracks children organized into groups (A, B, C, D) with rotating daily priorities and dynamic capacity management based on staff availability.
+Kitana is a web application for visualizing and managing day-care rotation schedules. The system tracks children organized into groups (A, B, C, D) with rotating daily priorities and dynamic capacity management based on staff availability.
 
 ## Core Business Logic
 

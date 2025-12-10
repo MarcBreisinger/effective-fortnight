@@ -1,5 +1,5 @@
 #!/bin/bash
-# Database setup script for day-care rotation system
+# Database setup script for Kitana
 # Loads schema.sql into the database
 
 set -e  # Exit on error

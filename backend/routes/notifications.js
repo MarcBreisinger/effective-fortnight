@@ -93,4 +93,77 @@ router.post('/unsubscribe', authenticateToken, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/notifications/preferences
+ * Get notification preferences for current user
+ */
+router.get('/preferences', authenticateToken, async (req, res) => {
+  try {
+    const db = require('../config/database');
+    const [subscriptions] = await db.query(
+      'SELECT preferences FROM push_subscriptions WHERE user_id = ? LIMIT 1',
+      [req.user.id]
+    );
+
+    if (subscriptions.length === 0) {
+      // Return default preferences if no subscription exists
+      return res.json({
+        slot_lost: true,
+        slot_assigned: true
+      });
+    }
+
+    let preferences = { slot_lost: true, slot_assigned: true };
+    if (subscriptions[0].preferences) {
+      try {
+        preferences = typeof subscriptions[0].preferences === 'string'
+          ? JSON.parse(subscriptions[0].preferences)
+          : subscriptions[0].preferences;
+      } catch (e) {
+        console.error('[Notifications API] Error parsing preferences:', e);
+      }
+    }
+
+    res.json(preferences);
+  } catch (error) {
+    console.error('[Notifications API] Error fetching preferences:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * PUT /api/notifications/preferences
+ * Update notification preferences for current user
+ * Body: { slot_lost: boolean, slot_assigned: boolean }
+ */
+router.put('/preferences', authenticateToken, async (req, res) => {
+  try {
+    const { slot_lost, slot_assigned } = req.body;
+
+    // Validate preferences
+    if (typeof slot_lost !== 'boolean' || typeof slot_assigned !== 'boolean') {
+      return res.status(400).json({
+        error: 'Invalid preferences. Both slot_lost and slot_assigned must be boolean values.'
+      });
+    }
+
+    const preferences = { slot_lost, slot_assigned };
+    const db = require('../config/database');
+
+    // Update all subscriptions for this user
+    await db.query(
+      'UPDATE push_subscriptions SET preferences = ? WHERE user_id = ?',
+      [JSON.stringify(preferences), req.user.id]
+    );
+
+    res.json({
+      message: 'Preferences updated successfully',
+      preferences
+    });
+  } catch (error) {
+    console.error('[Notifications API] Error updating preferences:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

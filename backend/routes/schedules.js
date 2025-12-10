@@ -367,7 +367,8 @@ router.patch('/date/:date/capacity',
               url: `/?date=${date}`,
               date: date,
               tag: `capacity-reduction-${date}`,
-              requireInteraction: true
+              requireInteraction: true,
+              event: 'slot_lost'
             };
             
             await sendPushNotificationsToUsers([parseInt(parentId)], notificationPayload);

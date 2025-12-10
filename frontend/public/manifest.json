@@ -1,6 +1,6 @@
 {
-  "name": "Day-Care Rotation System",
-  "short_name": "Day-Care",
+  "name": "Kitana",
+  "short_name": "Kitana",
   "description": "Manage day-care rotation schedules and attendance",
   "start_url": "/",
   "display": "standalone",

@@ -75,6 +75,13 @@ const ParentSettings = () => {
     iosPrompt: false
   });
 
+  // Push notification preferences
+  const [notificationPreferences, setNotificationPreferences] = useState({
+    slot_lost: true,
+    slot_assigned: true,
+    loading: false
+  });
+
   // Children state
   const [children, setChildren] = useState([]);
   const [editChildDialog, setEditChildDialog] = useState({
@@ -124,6 +131,11 @@ const ParentSettings = () => {
         loading: false,
         iosPrompt: isIOSSafari() && !isInstalledPWA()
       });
+      
+      // Fetch notification preferences if subscribed
+      if (subscribed) {
+        fetchNotificationPreferences();
+      }
     } else {
       setPushNotifications({
         supported,
@@ -132,6 +144,69 @@ const ParentSettings = () => {
         loading: false,
         iosPrompt: isIOSSafari() && !isInstalledPWA()
       });
+    }
+  };
+
+  const fetchNotificationPreferences = async () => {
+    try {
+      const response = await fetch('/api/notifications/preferences', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      if (response.ok) {
+        const preferences = await response.json();
+        setNotificationPreferences({
+          slot_lost: preferences.slot_lost !== false,
+          slot_assigned: preferences.slot_assigned !== false,
+          loading: false
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching notification preferences:', error);
+    }
+  };
+
+  const handlePreferenceChange = async (preferenceKey) => {
+    const newValue = !notificationPreferences[preferenceKey];
+    
+    // Optimistic update
+    setNotificationPreferences(prev => ({
+      ...prev,
+      [preferenceKey]: newValue
+    }));
+
+    try {
+      const response = await fetch('/api/notifications/preferences', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...notificationPreferences,
+          [preferenceKey]: newValue
+        })
+      });
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: t('preferencesUpdated') });
+      } else {
+        // Revert on error
+        setNotificationPreferences(prev => ({
+          ...prev,
+          [preferenceKey]: !newValue
+        }));
+        setMessage({ type: 'error', text: t('failedToUpdatePreferences') });
+      }
+    } catch (error) {
+      console.error('Error updating preferences:', error);
+      // Revert on error
+      setNotificationPreferences(prev => ({
+        ...prev,
+        [preferenceKey]: !newValue
+      }));
+      setMessage({ type: 'error', text: t('failedToUpdatePreferences') });
     }
   };
 
@@ -394,6 +469,7 @@ const ParentSettings = () => {
 
         // Subscribe
         await subscribeToPushNotifications(localStorage.getItem('token'));
+        await fetchNotificationPreferences(); // Fetch preferences after subscribing
         setPushNotifications(prev => ({
           ...prev,
           subscribed: true,
@@ -543,6 +619,39 @@ const ParentSettings = () => {
                 <Typography variant="body2" color="text.secondary" sx={{ ml: 4, mt: 0.5 }}>
                   {t('pushNotificationsHelp')}
                 </Typography>
+
+                {pushNotifications.subscribed && (
+                  <Box sx={{ ml: 4, mt: 2 }}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      {t('notificationPreferences')}
+                    </Typography>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={notificationPreferences.slot_lost}
+                          onChange={() => handlePreferenceChange('slot_lost')}
+                          disabled={notificationPreferences.loading}
+                          color="primary"
+                          size="small"
+                        />
+                      }
+                      label={t('notifySlotLost')}
+                    />
+                    <br />
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={notificationPreferences.slot_assigned}
+                          onChange={() => handlePreferenceChange('slot_assigned')}
+                          disabled={notificationPreferences.loading}
+                          color="primary"
+                          size="small"
+                        />
+                      }
+                      label={t('notifySlotAssigned')}
+                    />
+                  </Box>
+                )}
               </>
             )}
             

@@ -1,6 +1,6 @@
 # Push Notifications Setup Guide
 
-This document provides step-by-step instructions to complete the push notifications setup for the day-care rotation system.
+This document provides step-by-step instructions to complete the push notifications setup for Kitana.
 
 ## Overview
 

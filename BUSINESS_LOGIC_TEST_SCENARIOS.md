@@ -1,6 +1,6 @@
 # Business Logic Test Scenarios
 
-This document outlines manual end-to-end test scenarios for the day-care rotation system. These tests verify business logic flows that are not covered by automated unit tests.
+This document outlines manual end-to-end test scenarios for Kitana. These tests verify business logic flows that are not covered by automated unit tests.
 
 > **Note**: Basic validation (authentication, authorization, date validation, urgency levels) is covered by automated tests in `backend/__tests__/`. This document focuses on complex multi-step workflows and integration scenarios.
 
@@ -542,7 +542,7 @@ SELECT * FROM user_child_links WHERE user_id = ?;
 
 **API Verification:**
 ```bash
-curl -X DELETE https://daycare.marcb.uber.space/api/auth/unlink-child/2 \
+curl -X DELETE https://kitana.marcb.uber.space/api/auth/unlink-child/2 \
   -H "Authorization: Bearer <jwt-token>"
 
 # Expected response:
@@ -592,7 +592,7 @@ SELECT * FROM children WHERE id = 1;
 **API Verification:**
 ```bash
 # Step 1: Unlink last child
-curl -X DELETE https://daycare.marcb.uber.space/api/auth/unlink-child/1 \
+curl -X DELETE https://kitana.marcb.uber.space/api/auth/unlink-child/1 \
   -H "Authorization: Bearer <jwt-token>"
 
 # Expected response:
@@ -602,7 +602,7 @@ curl -X DELETE https://daycare.marcb.uber.space/api/auth/unlink-child/1 \
 }
 
 # Step 2: Delete account
-curl -X DELETE https://daycare.marcb.uber.space/api/auth/delete-account \
+curl -X DELETE https://kitana.marcb.uber.space/api/auth/delete-account \
   -H "Authorization: Bearer <jwt-token>"
 
 # Expected response:
@@ -674,7 +674,7 @@ SELECT user_id, child_id FROM user_child_links WHERE child_id = 1;
 
 **API Verification:**
 ```bash
-curl -X DELETE https://daycare.marcb.uber.space/api/auth/unlink-child/2 \
+curl -X DELETE https://kitana.marcb.uber.space/api/auth/unlink-child/2 \
   -H "Authorization: Bearer <parent1-jwt-token>"
 
 # Expected response (403):
@@ -698,7 +698,7 @@ curl -X DELETE https://daycare.marcb.uber.space/api/auth/unlink-child/2 \
 
 **API Verification:**
 ```bash
-curl -X DELETE https://daycare.marcb.uber.space/api/auth/delete-account \
+curl -X DELETE https://kitana.marcb.uber.space/api/auth/delete-account \
   -H "Authorization: Bearer <staff-jwt-token>"
 
 # Expected response (403):

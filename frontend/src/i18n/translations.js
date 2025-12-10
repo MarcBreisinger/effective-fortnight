@@ -44,7 +44,7 @@ export const translations = {
     redirectingToLogin: 'Redirecting to login page...',
     
     // Main Schedule
-    dayCareRotationSchedule: 'Day-Care Rotation Schedule',
+    dayCareRotationSchedule: 'Kitana Schedule',
     selectDate: 'Select Date',
     previousDay: 'Previous Day',
     nextDay: 'Next Day',
@@ -221,7 +221,7 @@ export const translations = {
     // Display Preferences
     displayPreferences: 'Display Preferences',
     showSlotOccupancyLabel: 'Show whose slot is being occupied',
-    showSlotOccupancyHelp: 'When enabled, you\'ll see which child is using whose slot when children from other groups attend',
+    showSlotOccupancyHelp: 'When enabled, you\'ll see which child is using whose slot.',
     usingSlotOf: 'Using #\'s slot',
     usingFreeSlotFromGroup: 'Free slot from Group #',
     slotUsedBy: 'Slot used by #',
@@ -235,13 +235,18 @@ export const translations = {
     // Push Notifications
     pushNotifications: 'Push Notifications',
     enablePushNotifications: 'Enable push notifications',
-    pushNotificationsHelp: 'Get notified when your child loses their attendance slot due to capacity changes',
+    pushNotificationsHelp: 'Get notified when your child loses or is assigned an attendance slot',
     pushNotificationsEnabled: 'Push notifications enabled successfully',
     pushNotificationsDisabled: 'Push notifications disabled',
     pushNotificationsError: 'Failed to update notification settings',
     pushNotificationsNotSupported: 'Push notifications are not supported on this device or browser',
     pushNotificationsPermissionDenied: 'Notification permission was denied. Please enable notifications in your browser settings.',
     pushNotificationsIOSInstructions: 'On iOS, you need to add this app to your home screen to receive push notifications. Tap the Share button and select "Add to Home Screen".',
+    notificationPreferences: 'Notification Types',
+    notifySlotLost: 'Notify when child loses slot',
+    notifySlotAssigned: 'Notify when child is assigned slot',
+    preferencesUpdated: 'Notification preferences updated',
+    failedToUpdatePreferences: 'Failed to update preferences',
     
     // Errors
     failedToLoadSchedule: 'Failed to load schedule',
@@ -312,7 +317,7 @@ export const translations = {
     redirectingToLogin: 'Weiterleitung zur Anmeldeseite...',
     
     // Main Schedule
-    dayCareRotationSchedule: 'Kita-Rotationsplan',
+    dayCareRotationSchedule: 'Kitana Plan',
     selectDate: 'Datum auswählen',
     previousDay: 'Vorheriger Tag',
     nextDay: 'Nächster Tag',
@@ -489,7 +494,7 @@ export const translations = {
     // Display Preferences
     displayPreferences: 'Anzeigeeinstellungen',
     showSlotOccupancyLabel: 'Anzeigen, wessen Platz belegt wird',
-    showSlotOccupancyHelp: 'Wenn aktiviert, sehen Sie, welches Kind den Platz von wem nutzt, wenn Kinder aus anderen Gruppen teilnehmen',
+    showSlotOccupancyHelp: 'Wenn aktiviert, sehen Sie, welches Kind wessen freigegebenen Platz nutzt',
     usingSlotOf: 'Nutzt Platz von #',
     usingFreeSlotFromGroup: 'Freier Platz aus Gruppe #',
     slotUsedBy: 'Platz wird von # genutzt',
@@ -503,13 +508,18 @@ export const translations = {
     // Push Notifications
     pushNotifications: 'Push-Benachrichtigungen',
     enablePushNotifications: 'Push-Benachrichtigungen aktivieren',
-    pushNotificationsHelp: 'Erhalten Sie eine Benachrichtigung, wenn Ihr Kind seinen Betreuungsplatz aufgrund von Kapazitätsänderungen verliert',
+    pushNotificationsHelp: 'Erhalten Sie eine Benachrichtigung, wenn Ihr Kind einen Betreuungsplatz verliert oder zugewiesen bekommt',
     pushNotificationsEnabled: 'Push-Benachrichtigungen erfolgreich aktiviert',
     pushNotificationsDisabled: 'Push-Benachrichtigungen deaktiviert',
     pushNotificationsError: 'Fehler beim Aktualisieren der Benachrichtigungseinstellungen',
     pushNotificationsNotSupported: 'Push-Benachrichtigungen werden auf diesem Gerät oder Browser nicht unterstützt',
     pushNotificationsPermissionDenied: 'Benachrichtigungsberechtigung wurde verweigert. Bitte aktivieren Sie Benachrichtigungen in Ihren Browsereinstellungen.',
     pushNotificationsIOSInstructions: 'Auf iOS müssen Sie diese App zu Ihrem Startbildschirm hinzufügen, um Push-Benachrichtigungen zu erhalten. Tippen Sie auf die Teilen-Schaltfläche und wählen Sie "Zum Home-Bildschirm".',
+    notificationPreferences: 'Benachrichtigungsarten',
+    notifySlotLost: 'Benachrichtigen bei Platzverlust',
+    notifySlotAssigned: 'Benachrichtigen bei Platzzuweisung',
+    preferencesUpdated: 'Benachrichtigungseinstellungen aktualisiert',
+    failedToUpdatePreferences: 'Fehler beim Aktualisieren der Einstellungen',
     
     // Errors
     failedToLoadSchedule: 'Fehler beim Laden des Zeitplans',

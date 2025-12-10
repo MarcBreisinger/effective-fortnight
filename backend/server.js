@@ -27,7 +27,7 @@ app.use('/api/notifications', notificationRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Day-care rotation API is running' });
+  res.json({ status: 'ok', message: 'Kitana API is running' });
 });
 
 // Serve static files from the frontend build in production

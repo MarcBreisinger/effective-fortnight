@@ -8,7 +8,7 @@ set -e  # Exit on any error
 SERVER="marcb@himalia.uberspace.de"
 APP_DIR="daycare-app"
 
-echo "=== Safe Deployment to daycare.marcb.uber.space ==="
+echo "=== Safe Deployment to kitana.marcb.uber.space ==="
 echo ""
 
 # Step 1: Build frontend
@@ -64,7 +64,7 @@ ENDSSH
 echo ""
 echo "=== Deployment Complete! ==="
 echo ""
-echo "✅ Your app is live at: https://daycare.marcb.uber.space/"
+echo "✅ Your app is live at: https://kitana.marcb.uber.space/"
 echo ""
 echo "⚠️  IMPORTANT: .env file is NEVER synced for security!"
 echo "   If you need to update server .env, do it manually via SSH."

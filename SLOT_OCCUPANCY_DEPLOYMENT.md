@@ -121,7 +121,7 @@ supervisorctl restart daycare-backend
 2. **Test API:**
    ```bash
    # Get user profile (should include showSlotOccupancy: false for existing users)
-   curl -H "Authorization: Bearer YOUR_TOKEN" https://daycare.marcb.uber.space/api/auth/me
+   curl -H "Authorization: Bearer YOUR_TOKEN" https://kitana.marcb.uber.space/api/auth/me
    ```
 
 3. **Test Frontend:**

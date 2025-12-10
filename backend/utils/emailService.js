@@ -8,31 +8,31 @@ const nodemailer = require('nodemailer');
 const emailTranslations = {
   en: {
     passwordReset: {
-      subject: 'Password Reset Request - Day Care Rotation System',
+      subject: 'Password Reset Request - Kitana',
       greeting: 'Hello',
-      intro: 'You have requested to reset your password for the Day Care Rotation System.',
+      intro: 'You have requested to reset your password for Kitana.',
       instruction: 'Please click on the following link to reset your password:',
       buttonText: 'Reset Password',
       linkText: 'Or copy and paste this link into your browser:',
       expiry: 'This link will expire in 1 hour.',
       noRequest: 'If you did not request this password reset, please ignore this email and your password will remain unchanged.',
       closing: 'Best regards',
-      systemName: 'Day Care Rotation System',
+      systemName: 'Kitana',
       footerNote: 'This is an automated email, please do not reply.'
     }
   },
   de: {
     passwordReset: {
-      subject: 'Anfrage zur Passwortzurücksetzung - Kita-Rotationssystem',
+      subject: 'Anfrage zur Passwortzurücksetzung - Kitana',
       greeting: 'Hallo',
-      intro: 'Sie haben eine Zurücksetzung Ihres Passworts für das Kita-Rotationssystem angefordert.',
+      intro: 'Sie haben eine Zurücksetzung Ihres Passworts für Kitana angefordert.',
       instruction: 'Bitte klicken Sie auf den folgenden Link, um Ihr Passwort zurückzusetzen:',
       buttonText: 'Passwort zurücksetzen',
       linkText: 'Oder kopieren Sie diesen Link in Ihren Browser:',
       expiry: 'Dieser Link läuft in 1 Stunde ab.',
       noRequest: 'Wenn Sie diese Passwortzurücksetzung nicht angefordert haben, ignorieren Sie bitte diese E-Mail und Ihr Passwort bleibt unverändert.',
       closing: 'Mit freundlichen Grüßen',
-      systemName: 'Kita-Rotationssystem',
+      systemName: 'Kitana',
       footerNote: 'Dies ist eine automatisierte E-Mail, bitte antworten Sie nicht.'
     }
   }

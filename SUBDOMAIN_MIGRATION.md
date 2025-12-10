@@ -1,15 +1,17 @@
-# Subdomain Migration Guide
+# Subdomain Migration History
 
-The application has been moved from `https://marcb.uber.space/` to `https://daycare.marcb.uber.space/`.
+The application was moved from `https://marcb.uber.space/` to `https://daycare.marcb.uber.space/`, and then to `https://kitana.marcb.uber.space/`.
 
 ## What Changed
 
-### Frontend Configuration
-- Updated `frontend/.env.production` to use new API URL: `https://daycare.marcb.uber.space/api`
+### Current Configuration (as of December 2025)
 
-### Backend Configuration
-- Configured web backend to route `daycare.marcb.uber.space` to Node.js port 5000
-- Updated FRONTEND_URL in production `.env` to `https://daycare.marcb.uber.space`
+**Frontend Configuration:**
+- `frontend/.env.production`: `https://kitana.marcb.uber.space/api`
+
+**Backend Configuration:**
+- Web backend routes `kitana.marcb.uber.space` to Node.js port 5000
+- FRONTEND_URL in production `.env`: `https://kitana.marcb.uber.space`
 
 ### Deployment
 - Created `scripts/deploy-to-subdomain.sh` for automated deployment

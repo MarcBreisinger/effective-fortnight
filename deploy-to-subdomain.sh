@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Deploy to daycare.marcb.uber.space subdomain
+# Deploy to kitana.marcb.uber.space subdomain
 # This script:
 # 1. Adds the subdomain on Uberspace
 # 2. Builds the frontend with updated API URL
@@ -13,7 +13,7 @@ set -e  # Exit on any error
 SERVER="marcb@himalia.uberspace.de"
 APP_DIR="daycare-app"
 
-echo "=== Deploying to daycare.marcb.uber.space ==="
+echo "=== Deploying to kitana.marcb.uber.space ==="
 
 # Step 1: Build frontend with production settings
 echo ""
@@ -44,7 +44,7 @@ echo "Step 4: Configuring server (single SSH session)..."
 ssh $SERVER << 'ENDSSH'
 # Add subdomain on Uberspace (if not already added)
 echo "Adding subdomain to Uberspace..."
-uberspace web domain add daycare.marcb.uber.space || echo 'Subdomain already exists'
+uberspace web domain add kitana.marcb.uber.space || echo 'Subdomain already exists'
 
 # Install backend dependencies and configure
 echo "Configuring backend..."
@@ -57,10 +57,10 @@ npm install --production
 if [ -f .env ]; then
   # Update FRONTEND_URL if it exists
   if grep -q "^FRONTEND_URL=" .env; then
-    sed -i 's|^FRONTEND_URL=.*|FRONTEND_URL=https://daycare.marcb.uber.space|' .env
+    sed -i 's|^FRONTEND_URL=.*|FRONTEND_URL=https://kitana.marcb.uber.space|' .env
   else
     # Add FRONTEND_URL if it doesn't exist
-    echo "FRONTEND_URL=https://daycare.marcb.uber.space" >> .env
+    echo "FRONTEND_URL=https://kitana.marcb.uber.space" >> .env
   fi
   
   # Update SMTP_FROM if using marcb.uber.space email
@@ -68,7 +68,7 @@ if [ -f .env ]; then
     echo ""
     echo "⚠️  WARNING: You're using @marcb.uber.space email address."
     echo "   Consider updating SMTP_FROM to match your subdomain:"
-    echo "   SMTP_FROM=Day-Care System <noreply@daycare.marcb.uber.space>"
+    echo "   SMTP_FROM=Kitana <noreply@kitana.marcb.uber.space>"
     echo ""
   fi
 else
@@ -95,7 +95,7 @@ supervisorctl update
 
 # Configure web backend to route subdomain to Node.js
 echo "Configuring web backend for subdomain..."
-uberspace web backend set daycare.marcb.uber.space --http --port 5000
+uberspace web backend set kitana.marcb.uber.space --http --port 5000
 
 # Restart supervisor service
 echo "Restarting backend service..."
@@ -110,20 +110,20 @@ echo ""
 echo "=== Deployment Complete! ==="
 echo ""
 echo "🎉 Your app should now be accessible at:"
-echo "   https://daycare.marcb.uber.space/"
+echo "   https://kitana.marcb.uber.space/"
 echo ""
 echo "📧 Email Configuration:"
-echo "   If you want emails to come from @daycare.marcb.uber.space,"
+echo "   If you want emails to come from @kitana.marcb.uber.space,"
 echo "   you need to:"
 echo "   1. SSH to server: ssh $SERVER"
-echo "   2. Add mail domain: uberspace mail domain add daycare.marcb.uber.space"
-echo "   3. Create mailbox: uberspace mail user add noreply@daycare.marcb.uber.space"
-echo "   4. Update .env: SMTP_USER=noreply@daycare.marcb.uber.space"
-echo "   5. Update .env: SMTP_FROM=Day-Care System <noreply@daycare.marcb.uber.space>"
+echo "   2. Add mail domain: uberspace mail domain add kitana.marcb.uber.space"
+echo "   3. Create mailbox: uberspace mail user add noreply@kitana.marcb.uber.space"
+echo "   4. Update .env: SMTP_USER=noreply@kitana.marcb.uber.space"
+echo "   5. Update .env: SMTP_FROM=Kitana <noreply@kitana.marcb.uber.space>"
 echo "   6. Restart: supervisorctl restart daycare-backend"
 echo ""
 echo "🔍 Troubleshooting:"
 echo "   - Check logs: ssh $SERVER 'tail -f ~/logs/daycare-backend-error.log'"
-echo "   - Test API: curl https://daycare.marcb.uber.space/api/health"
+echo "   - Test API: curl https://kitana.marcb.uber.space/api/health"
 echo "   - If blank screen: Hard refresh browser (Cmd+Shift+R)"
 echo ""

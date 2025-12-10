@@ -1,4 +1,4 @@
-# Day-Care Rotation System
+# Kitana
 
 A web application for visualizing and managing day-care rotation schedules with role-based access for parents and staff.
 

@@ -1,6 +1,6 @@
 # Uberspace Deployment Guide
 
-This guide will help you deploy the day-care rotation system to your Uberspace server.
+This guide will help you deploy Kitana to your Uberspace server.
 
 ## Prerequisites
 

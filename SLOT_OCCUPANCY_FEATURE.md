@@ -112,7 +112,7 @@ Returns children with slot occupancy data:
 ```javascript
 displayPreferences: 'Display Preferences',
 showSlotOccupancyLabel: 'Show whose slot is being occupied',
-showSlotOccupancyHelp: 'When enabled, you\'ll see which child is using whose slot when children from other groups attend',
+showSlotOccupancyHelp: 'When enabled, you\'ll see which child is using whose yielded slot.',
 usingSlotOf: 'Using #\'s slot',
 ```
 
@@ -120,7 +120,7 @@ usingSlotOf: 'Using #\'s slot',
 ```javascript
 displayPreferences: 'Anzeigeeinstellungen',
 showSlotOccupancyLabel: 'Anzeigen, wessen Platz belegt wird',
-showSlotOccupancyHelp: 'Wenn aktiviert, sehen Sie, welches Kind den Platz von wem nutzt, wenn Kinder aus anderen Gruppen teilnehmen',
+showSlotOccupancyHelp: 'Wenn aktiviert, sehen Sie, welches Kind wessen abgegebenen Platz nutzt',
 usingSlotOf: 'Nutzt den Platz von #',
 ```
 
